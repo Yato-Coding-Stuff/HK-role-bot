@@ -105,7 +105,10 @@ export const targetUserReset = async (userId) => {
           has_role_image: false
         }
       },
-      { upsert: true } // keeps the user document if it doesn't exist
+      {
+        upsert: true,
+        returnDocument: "after"
+      }
     );
 
     return updatedUser.value;

@@ -31,7 +31,7 @@ export const incrementUserCountHandler = async (message) => {
 
         try {
           await member.roles.add(ASSIGNABLE_ROLES.vcRole)
-          console.log('User reached message count for VC role, assigned')
+          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for VC role, assigned`)
         } catch (error) {
           console.error("Error assigning VC role:", error);
         }
@@ -39,11 +39,14 @@ export const incrementUserCountHandler = async (message) => {
     }
 
     if (has_role_image) {
-      try {
-        await member.roles.add(ASSIGNABLE_ROLES.imgRole)
-        console.log('User reached message count for Image role, assigned')
-      } catch (error) {
-        console.error("Error assigning VC role:", error);
+      if (!roleIds.includes(ASSIGNABLE_ROLES.imgRole)) {
+        try {
+          await member.roles.add(ASSIGNABLE_ROLES.imgRole)
+          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for Image role, assigned`)
+
+        } catch (error) {
+          console.error("Error assigning Image role:", error);
+        }
       }
     }
 
@@ -74,7 +77,8 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
 
         try {
           await member.roles.add(ASSIGNABLE_ROLES.vcRole)
-          console.log('User reached message count for VC role, assigned')
+          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for VC role, assigned`)
+
         } catch (error) {
           console.error("Error assigning VC role:", error);
         }
@@ -82,11 +86,15 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
     }
 
     if (count >= 300) {
-      try {
-        await member.roles.add(ASSIGNABLE_ROLES.imgRole)
-        console.log('User reached message count for Image role, assigned')
-      } catch (error) {
-        console.error("Error assigning VC role:", error);
+      if (!roleIds.includes(ASSIGNABLE_ROLES.imgRole)) {
+
+        try {
+          await member.roles.add(ASSIGNABLE_ROLES.imgRole)
+          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for Image role, assigned`)
+
+        } catch (error) {
+          console.error("Error assigning VC role:", error);
+        }
       }
     }
 
