@@ -1,3 +1,5 @@
+import { ALLOWED_ROLES, IGNORED_ROLES } from './constants.js';
+
 export const hasPermission = (member) =>
   member && member.roles.cache.some(role => ALLOWED_ROLES.includes(role.id));
 
