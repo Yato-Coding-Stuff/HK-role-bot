@@ -36,23 +36,35 @@ export const COMMAND_MESSAGES = {
 
   setcount: {
     start: ({ userId, count }) =>
-      `⏳ Updating message count for ${userId} to ${count}...`,
-    done: ({ userId, count }) =>
-      `✅ Finished updating message count for <@${userId}> to ${count}`,
+      `⏳ Updating message count for <@${userId}> to ${count}...`,
+    done: ({ userId, count, rolesAssigned }) => {
+      if (rolesAssigned.length === 0) {
+        return `✅ Finished updating message count for <@${userId}> to ${count}. No roles were assigned`;
+      }
+
+      if (rolesAssigned.length === 1) {
+        return `✅ Finished updating message count for <@${userId}> to ${count}. Assigned ${rolesAssigned[0]} role`;
+
+      }
+
+      if (rolesAssigned.length > 1) {
+        return `✅ Finished updating message count for <@${userId}> to ${count}. Assigned both VC and Image roles.`
+      }
+    },
     error: ({ error }) =>
-      `❌ Failed to update roles\n${error}`
+      `❌ Failed to update roles\n${error} `
   },
 
   ping: {
     start: () => '⏳ ...',
-    done: ({ elapsed }) => `✅ Pong! \n⏱️ Elapsed: ${elapsed}`
+    done: ({ elapsed }) => `✅ Pong! \n⏱️ Elapsed: ${elapsed} `
   },
 
   targetuserreset: {
     start: ({ command, userId }) => `command ${command} issued for ${userId}\n⏳ Resetting perm roles...`,
     done: ({ userId }) => `✅ Finished resetting perm roles for ${userId}`,
     error: ({ error }) =>
-      `❌ Failed to reset user roles\n${error}`
+      `❌ Failed to reset user roles\n${error} `
   },
 
   rollout: {
@@ -61,7 +73,7 @@ export const COMMAND_MESSAGES = {
     progress: ({ processed, elapsed }) =>
       `Rolling out roles...\n
 
-    ⏱️ Elapsed: ${elapsed}\n
+    ⏱️ Elapsed: ${elapsed} \n
     ✅ Processed: ${processed.processed} users
     ️⏳ Updated: ${processed.updated} users
     ❌ Skipped: ${processed.skipped} users
@@ -69,7 +81,7 @@ export const COMMAND_MESSAGES = {
     done: ({ processed, elapsed }) =>
       `All Done!\n
     
-    ⏱️ Elapsed: ${elapsed}\n
+    ⏱️ Elapsed: ${elapsed} \n
     ✅ Processed: ${processed.processed} users
     ️⏳ Updated: ${processed.updated} users
     ❌ Skipped: ${processed.skipped} users

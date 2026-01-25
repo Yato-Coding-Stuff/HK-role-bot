@@ -58,14 +58,15 @@ export const incrementUserCountHandler = async (message) => {
 
 
 export const setUserMessageCountHandler = async ({ message, userId, count }) => {
-  let statusMsg;
+  let setCountMessage;
+  let rolesAssigned = [];
   try {
-    statusMsg = await messageHandler({
+    setCountMessage = await messageHandler({
       message,
       command: "setcount",
       phase: MESSAGE_PHASE.START,
       context: { userId, count },
-      sentMsg: statusMsg
+      sentMsg: setCountMessage
     });
     await setUserMessageCount({ userId, count });
 
@@ -77,9 +78,17 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
 
         try {
           await member.roles.add(ASSIGNABLE_ROLES.vcRole)
-          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for VC role, assigned`)
+          rolesAssigned.push('VC');
+          console.log(`${member.user.tag} assigned VC role for set count of ${count}`)
 
         } catch (error) {
+          setCountMessage = await messageHandler({
+            message,
+            command: "setcount",
+            phase: MESSAGE_PHASE.ERROR,
+            context: { error: e },
+            sentMsg: setCountMessage
+          });
           console.error("Error assigning VC role:", error);
         }
       }
@@ -90,31 +99,39 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
 
         try {
           await member.roles.add(ASSIGNABLE_ROLES.imgRole)
-          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for Image role, assigned`)
+          rolesAssigned.push('VC');
+          console.log(`${member.user.tag} assigned Image role for set count of ${count}`)
+
 
         } catch (error) {
+          setCountMessage = await messageHandler({
+            message,
+            command: "setcount",
+            phase: MESSAGE_PHASE.ERROR,
+            context: { error: e },
+            sentMsg: setCountMessage
+          });
           console.error("Error assigning VC role:", error);
         }
       }
     }
 
 
-
-    statusMsg = await messageHandler({
+    setCountMessage = await messageHandler({
       message,
       command: "setcount",
       phase: MESSAGE_PHASE.DONE,
-      context: { userId, count },
-      sentMsg: statusMsg
+      context: { userId, count, rolesAssigned },
+      sentMsg: setCountMessage
     });
   } catch (e) {
     console.error("Error setting user message count:", e);
-    statusMsg = await messageHandler({
+    setCountMessage = await messageHandler({
       message,
       command: "setcount",
       phase: MESSAGE_PHASE.ERROR,
       context: { error: e },
-      sentMsg: statusMsg
+      sentMsg: setCountMessage
     });
   }
 
@@ -187,10 +204,14 @@ export const pongHandler = async (message) => {
 
 export const targetUserResetHandler = async ({ message, command, userId }) => {
 
-  let rolloutMsg = await messageHandler({
+  let targetUserMsg;
+
+  targetUserMsg = await messageHandler({
     message,
     command: "targetuserreset",
     phase: MESSAGE_PHASE.START,
+    context: { command, userId },
+    sentMsg: targetUserMsg
   });
 
   if (command !== "banf") {
@@ -205,17 +226,22 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
         console.log(`Removed assignable roles from user ${userId}`);
       }
 
-      rolloutMsg = await messageHandler({
+      targetUserMsg = await messageHandler({
         message,
         command: "targetuserreset",
         phase: MESSAGE_PHASE.DONE,
+        context: { userId },
+        sentMsg: targetUserMsg
       });
+
     } catch (err) {
       console.error("Error resetting target user roles:", err);
-      rolloutMsg = await messageHandler({
+      targetUserMsg = await messageHandler({
         message,
         command: "targetuserreset",
         phase: MESSAGE_PHASE.ERROR,
+        context: { err },
+        sentMsg: targetUserMsg
       });
     }
   }
@@ -224,17 +250,22 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
     try {
       await targetUserReset(userId);
       console.log(`Removed assignable roles from user ${userId}`);
-      rolloutMsg = await messageHandler({
+      targetUserMsg = await messageHandler({
         message,
         command: "targetuserreset",
         phase: MESSAGE_PHASE.DONE,
+        context: { userId },
+        sentMsg: targetUserMsg
       });
-    } catch (error) {
+
+    } catch (err) {
       console.error("Error resetting target user roles:", err);
-      rolloutMsg = await messageHandler({
+      targetUserMsg = await messageHandler({
         message,
         command: "targetuserreset",
         phase: MESSAGE_PHASE.ERROR,
+        context: { err },
+        sentMsg: targetUserMsg
       });
     }
   }
