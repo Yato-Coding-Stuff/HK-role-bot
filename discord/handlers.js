@@ -186,17 +186,59 @@ export const pongHandler = async (message) => {
 
 
 export const targetUserResetHandler = async ({ message, command, userId }) => {
-  try {
-    await targetUserReset(userId);
 
-    const member = await message.guild.members.fetch(userId);
-    if (member) {
-      await member.roles.remove([ASSIGNABLE_ROLES.vcRole, ASSIGNABLE_ROLES.imgRole]);
-      console.log(`Removed assignable roles from user ${userId}`);
+  let rolloutMsg = await messageHandler({
+    message,
+    command: "targetuserreset",
+    phase: MESSAGE_PHASE.START,
+  });
+
+  if (command !== "banf") {
+    try {
+
+      await targetUserReset(userId);
+
+      // this will fail if the command is ban because the user wont be in the guild anymore
+      const member = await message.guild.members.fetch(userId);
+      if (member) {
+        await member.roles.remove([ASSIGNABLE_ROLES.vcRole, ASSIGNABLE_ROLES.imgRole]);
+        console.log(`Removed assignable roles from user ${userId}`);
+      }
+
+      rolloutMsg = await messageHandler({
+        message,
+        command: "targetuserreset",
+        phase: MESSAGE_PHASE.DONE,
+      });
+    } catch (err) {
+      console.error("Error resetting target user roles:", err);
+      rolloutMsg = await messageHandler({
+        message,
+        command: "targetuserreset",
+        phase: MESSAGE_PHASE.ERROR,
+      });
     }
-  } catch (err) {
-    console.error("Error resetting target user roles:", err);
   }
+
+  if (command === "banf") {
+    try {
+      await targetUserReset(userId);
+      console.log(`Removed assignable roles from user ${userId}`);
+      rolloutMsg = await messageHandler({
+        message,
+        command: "targetuserreset",
+        phase: MESSAGE_PHASE.DONE,
+      });
+    } catch (error) {
+      console.error("Error resetting target user roles:", err);
+      rolloutMsg = await messageHandler({
+        message,
+        command: "targetuserreset",
+        phase: MESSAGE_PHASE.ERROR,
+      });
+    }
+  }
+
 };
 
 
