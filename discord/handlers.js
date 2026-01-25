@@ -1,6 +1,7 @@
 import { discordClient as client } from './discord.js';
-import { skipUser, ASSIGNABLE_ROLES, formatElapsedSeconds, MESSAGE_PHASE } from './utils.js';
+import { skipUser, formatElapsedSeconds } from './utils.js';
 import { updateUserMessageCount, updateBulkRoleCount, targetUserReset, fetchEligibleUsers, setUserMessageCount } from '../db/helper.js';
+import { ASSIGNABLE_ROLES, MESSAGE_PHASE } from './constants.js';
 import { messageHandler } from './message.js';
 
 

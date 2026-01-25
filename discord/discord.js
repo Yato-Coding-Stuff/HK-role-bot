@@ -1,8 +1,8 @@
 import { Client, GatewayIntentBits } from 'discord.js';
 const { Guilds, GuildMessages, MessageContent } = GatewayIntentBits;
-import { PREFIX, DYNO_PREFIX, hasPermission, skipUser as hasStaffPermission } from './utils.js';
+import { hasPermission, skipUser as hasStaffPermission } from './utils.js';
 import { pongHandler, updateBulkRolesHandler, incrementUserCountHandler, targetUserResetHandler, invalidPermissionsHandler, roleRolloutHandler, setUserMessageCountHandler } from './handlers.js';
-
+import { PREFIX, DYNO_PREFIX } from './constants.js';
 
 const client = new Client({ intents: [Guilds, GuildMessages, MessageContent] });
 
