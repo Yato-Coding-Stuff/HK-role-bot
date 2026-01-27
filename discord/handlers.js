@@ -48,7 +48,7 @@ export const incrementUserCountHandler = async (message) => {
 
         try {
           await member.roles.add(VC_ROLE)
-          console.log(`${member.user.tag} reached message count of ${messageCount} for VC role, assigned`)
+          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for VC role, assigned`)
         } catch (error) {
           console.error("Error assigning VC role:", error);
         }
@@ -59,7 +59,7 @@ export const incrementUserCountHandler = async (message) => {
       if (!roleIds.includes(IMG_ROLE)) {
         try {
           await member.roles.add(IMG_ROLE)
-          console.log(`${member.user.tag} reached message count of ${messageCount} for Image role, assigned`)
+          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for Image role, assigned`)
 
         } catch (error) {
           console.error("Error assigning Image role:", error);
