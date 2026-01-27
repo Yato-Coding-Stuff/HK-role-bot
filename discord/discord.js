@@ -44,12 +44,6 @@ client.on("messageCreate", async (message) => {
     if (command === "rollout") {
       await roleRolloutHandler(message);
     }
-    if (command === "targetuserreset") {
-      await targetUserResetHandler({
-        command,
-        userId: args[0],
-      });
-    }
     if (command === "setcount") {
       await setUserMessageCountHandler({
         message,
@@ -75,7 +69,7 @@ client.on("messageCreate", async (message) => {
 
     if (command === "mute" || command === "banf" || command === "kick") {
       //cmd doesnt work for sending channel message but doesnt matter as long as it works for db
-      await targetUserResetHandler({ command, userId: Number(args[0]) });
+      await targetUserResetHandler({ message, command, userId: args[0] });
     }
   }
 });
