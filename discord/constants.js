@@ -1,8 +1,10 @@
+export const BOT_PREFIX = "!";
+export const DYNO_PREFIX = "?";
+export const PREFIXES = [DYNO_PREFIX, BOT_PREFIX];
+export const FETCH_DELAY_MS = 250
+export const COMMAND_LIST = ['warn', "mute", "banf", "ban", "kick", 'seed', 'setcount', 'updatebulkroles', 'rollout'];
 export const ALLOWED_ROLES = ["283468468592836608", "1150967027922640896", "283547423706447872"];
 export const IGNORED_ROLES = ["283468468592836608", "283547423706447872", "327844709244469261", "309837968875585540", "328354344313421825", "284848710960021504", "1097313468153082046", "1303051739376652289"];
-export const FETCH_DELAY_MS = 250
-export const PREFIX = "!";
-export const DYNO_PREFIX = "?";
 export const ASSIGNABLE_ROLES = {
   VC_ROLE: "1456584340665405595",
   IMG_ROLE: "1456584029267824795",

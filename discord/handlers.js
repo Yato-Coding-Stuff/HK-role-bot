@@ -1,7 +1,7 @@
 import { discordClient as client } from './discord.js';
 import { skipUser, formatElapsedSeconds } from './utils.js';
 import { updateUserMessageCount, updateBulkRoleCount, targetUserReset, fetchEligibleUsers, setUserMessageCount } from '../db/helper.js';
-import { ASSIGNABLE_ROLES, MESSAGE_PHASE } from './constants.js';
+import { ASSIGNABLE_ROLES, MESSAGE_PHASE, COMMAND_LIST } from './constants.js';
 import { messageHandler } from './message.js';
 
 
@@ -22,17 +22,20 @@ export const incrementUserCountHandler = async (message) => {
   if (!member || skipUser(member)) return;
 
   try {
-    const updatedUser = await updateUserMessageCount(message.author.id);
+    const updatedUser = await updateUserMessageCount(message.author.id, message.author.tag);
     const { has_role_vc, has_role_image, messageCount } = updatedUser;
 
     const roleIds = member.roles.cache.map(role => role.id);
-    const rolesToRemove = roleIds.filter(roleId => roleId === VC_ROLE || roleId === IMG_ROLE);
+    const rolesToRemove = roleIds.filter(roleId => {
+      if (roleId === VC_ROLE && messageCount < 150) return true;
+      if (roleId === IMG_ROLE && messageCount < 300) return true;
+      return false;
+    });
 
     // catch for when dyno outpaces and removes roles before we can remove our own
     // dyno will then assign back roles after mute was done
     // once member sends 1 message, this will see if the messageCount is reset and if the user has roles, take them away
     if (
-      messageCount < 150 &&
       rolesToRemove.length
     ) {
       try {
@@ -394,6 +397,7 @@ export const roleRolloutHandler = async (message) => {
 
 
 
-export const invalidPermissionsHandler = async (message) => {
-  console.log(`command was tried to issue by ${message.author.tag} with a message of \n ${message.content}`);
+export const invalidPermissionsHandler = async ({ content, command, userName }) => {
+  if (!COMMAND_LIST.includes(command)) return;
+  console.log(`command "${content[0], command}" was tried to issue by ${userName} with a message of \n ${content}`);
 }

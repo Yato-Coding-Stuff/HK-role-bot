@@ -1,6 +1,6 @@
 import { collection } from './mongodb.js';
 
-export const updateUserMessageCount = async (userId) => {
+export const updateUserMessageCount = async (userId, userName) => {
   try {
     const updatedUser = await collection.findOneAndUpdate(
       { userId },
@@ -25,9 +25,9 @@ export const updateUserMessageCount = async (userId) => {
 
 
     if (updatedUser.upsertedCount > 0) {
-      console.log(`Inserted new document for user ${userId}`);
+      console.log(`Inserted new document for user ${userName}`);
     } else {
-      console.log(`Updated message count for existing user ${userId}`);
+      console.log(`Updated message count for existing user ${userName}`);
     }
 
     return updatedUser;
