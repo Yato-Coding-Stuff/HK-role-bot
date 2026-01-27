@@ -30,7 +30,7 @@ export const updateUserMessageCount = async (userId) => {
       console.log(`Updated message count for existing user ${userId}`);
     }
 
-    return updatedUser
+    return updatedUser;
 
   } catch (error) {
     console.error("Error updating user message count:", error);
@@ -60,7 +60,7 @@ export const setUserMessageCount = async ({ userId, count }) => {
       console.log(`Updated message count for existing user ${userId}`);
     }
 
-    return result.value
+    return result
   } catch (error) {
     console.error("Error setting user message count:", error);
     throw error;
@@ -111,7 +111,7 @@ export const targetUserReset = async (userId) => {
       }
     );
 
-    return updatedUser.value;
+    return updatedUser
   } catch (error) {
     console.error("Error resetting user message count:", error);
     throw error;
