@@ -237,20 +237,17 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
     sentMsg: targetUserMsg
   });
 
+  // this will fail if the command is ban because the user wont be in the guild anymore
   if (command !== "banf" || command === "kick") {
     try {
-
       await targetUserReset(userId);
-
-      // this will fail if the command is ban because the user wont be in the guild anymore
-
       // this might ALSO fail because dyno might remove the roles on mute before our bot can get to it
       // so we can just try to remove the roles and if not it will reset them on message increment anyway
       const member = await message.guild.members.fetch(userId);
       if (member) {
         await member.roles.remove([VC_ROLE, IMG_ROLE]);
         // for whatever reason dyno sometimes doesnt add the muted role on mute, so we'll just add it ourselves
-        await member.roles.add(MUTED_ROLE); // muted role
+        await member.roles.add(MUTED_ROLE);
         console.log(`Removed assignable roles from user ${userId}`);
 
       }
