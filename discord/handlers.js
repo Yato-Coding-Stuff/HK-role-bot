@@ -22,22 +22,20 @@ export const incrementUserCountHandler = async (message) => {
 
   try {
     const updatedUser = await updateUserMessageCount(message.author.id);
-
-    const roleIds = member.roles.cache.map(role => role.id);
     const { has_role_vc, has_role_image, messageCount } = updatedUser;
 
-    // weird catch where dyno our bot does not take roles fast enough before a dyno mute
+    const roleIds = member.roles.cache.map(role => role.id);
+    const rolesToRemove = roleIds.filter(roleId => roleId === ASSIGNABLE_ROLES.vcRole || roleId === ASSIGNABLE_ROLES.imgRole);
+
+    //catch where dyno our bot does not take roles fast enough before a dyno mute
     // dyno will then assign back roles after mute was done
     // this will see if the messageCount is reset and if the user has roles, take them away
     if (
       messageCount < 150 &&
-      (
-        roleIds.includes(ASSIGNABLE_ROLES.vcRole) ||
-        roleIds.includes(ASSIGNABLE_ROLES.imgRole)
-      )
+      rolesToRemove.length
     ) {
       try {
-        await member.roles.remove([ASSIGNABLE_ROLES.vcRole, ASSIGNABLE_ROLES.imgRole]);
+        await member.roles.remove(rolesToRemove);
         console.log(`Removed assignable roles from ${member.user.tag} due to message count reset to ${messageCount}`);
       } catch (error) {
         console.error("Error removing roles after message count reset:", error);
@@ -232,16 +230,20 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
     sentMsg: targetUserMsg
   });
 
-  if (command !== "banf") {
+  if (command !== "banf" || command === "kick") {
     try {
 
       await targetUserReset(userId);
 
       // this will fail if the command is ban because the user wont be in the guild anymore
+
+      // this might ALSO fail because dyno might remove the roles on mute before our bot can get to it
+      // so we can just try to remove the roles and if not it will reset them on message increment anyway
       const member = await message.guild.members.fetch(userId);
       if (member) {
         await member.roles.remove([ASSIGNABLE_ROLES.vcRole, ASSIGNABLE_ROLES.imgRole]);
         console.log(`Removed assignable roles from user ${userId}`);
+
       }
 
       targetUserMsg = await messageHandler({
@@ -258,13 +260,13 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
         message,
         command: "targetuserreset",
         phase: MESSAGE_PHASE.ERROR,
-        context: { err },
+        context: { error: err },
         sentMsg: targetUserMsg
       });
     }
   }
 
-  if (command === "banf") {
+  if (command === "banf" || command === "kick") {
     try {
       await targetUserReset(userId);
       console.log(`Removed assignable roles from user ${userId}`);
@@ -282,7 +284,7 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
         message,
         command: "targetuserreset",
         phase: MESSAGE_PHASE.ERROR,
-        context: { err },
+        context: { error: err },
         sentMsg: targetUserMsg
       });
     }
