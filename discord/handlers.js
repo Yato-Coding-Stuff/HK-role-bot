@@ -8,6 +8,7 @@ import { messageHandler } from './message.js';
 // each time a user types we bump their count by 1
 // unless staff or bot
 export const incrementUserCountHandler = async (message) => {
+  const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
   let member = message.member || (message.guild && message.guild.members.cache.get(message.author.id));
 
   if (!member && message.guild) {
@@ -25,7 +26,7 @@ export const incrementUserCountHandler = async (message) => {
     const { has_role_vc, has_role_image, messageCount } = updatedUser;
 
     const roleIds = member.roles.cache.map(role => role.id);
-    const rolesToRemove = roleIds.filter(roleId => roleId === ASSIGNABLE_ROLES.vcRole || roleId === ASSIGNABLE_ROLES.imgRole);
+    const rolesToRemove = roleIds.filter(roleId => roleId === VC_ROLE || roleId === IMG_ROLE);
 
     // catch for when dyno outpaces and removes roles before we can remove our own
     // dyno will then assign back roles after mute was done
@@ -43,11 +44,11 @@ export const incrementUserCountHandler = async (message) => {
     }
 
     if (has_role_vc) {
-      if (!roleIds.includes(ASSIGNABLE_ROLES.vcRole)) {
+      if (!roleIds.includes(VC_ROLE)) {
 
         try {
-          await member.roles.add(ASSIGNABLE_ROLES.vcRole)
-          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for VC role, assigned`)
+          await member.roles.add(VC_ROLE)
+          console.log(`${member.user.tag} reached message count of ${messageCount} for VC role, assigned`)
         } catch (error) {
           console.error("Error assigning VC role:", error);
         }
@@ -55,10 +56,10 @@ export const incrementUserCountHandler = async (message) => {
     }
 
     if (has_role_image) {
-      if (!roleIds.includes(ASSIGNABLE_ROLES.imgRole)) {
+      if (!roleIds.includes(IMG_ROLE)) {
         try {
-          await member.roles.add(ASSIGNABLE_ROLES.imgRole)
-          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for Image role, assigned`)
+          await member.roles.add(IMG_ROLE)
+          console.log(`${member.user.tag} reached message count of ${messageCount} for Image role, assigned`)
 
         } catch (error) {
           console.error("Error assigning Image role:", error);
@@ -74,13 +75,15 @@ export const incrementUserCountHandler = async (message) => {
 
 
 export const setUserMessageCountHandler = async ({ message, userId, count }) => {
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
+  const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
   let setCountMessage;
   let rolesAssigned = [];
   try {
     setCountMessage = await messageHandler({
       message,
       command: "setcount",
-      phase: MESSAGE_PHASE.START,
+      phase: START,
       context: { userId, count },
       sentMsg: setCountMessage
     });
@@ -90,10 +93,10 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
     const roleIds = member.roles.cache.map(role => role.id);
 
     if (count >= 150) {
-      if (!roleIds.includes(ASSIGNABLE_ROLES.vcRole)) {
+      if (!roleIds.includes(VC_ROLE)) {
 
         try {
-          await member.roles.add(ASSIGNABLE_ROLES.vcRole)
+          await member.roles.add(VC_ROLE)
           rolesAssigned.push('VC');
           console.log(`${member.user.tag} assigned VC role for set count of ${count}`)
 
@@ -101,7 +104,7 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
           setCountMessage = await messageHandler({
             message,
             command: "setcount",
-            phase: MESSAGE_PHASE.ERROR,
+            phase: ERROR,
             context: { error: e },
             sentMsg: setCountMessage
           });
@@ -111,10 +114,10 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
     }
 
     if (count >= 300) {
-      if (!roleIds.includes(ASSIGNABLE_ROLES.imgRole)) {
+      if (!roleIds.includes(IMG_ROLE)) {
 
         try {
-          await member.roles.add(ASSIGNABLE_ROLES.imgRole)
+          await member.roles.add(IMG_ROLE)
           rolesAssigned.push('VC');
           console.log(`${member.user.tag} assigned Image role for set count of ${count}`)
 
@@ -123,7 +126,7 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
           setCountMessage = await messageHandler({
             message,
             command: "setcount",
-            phase: MESSAGE_PHASE.ERROR,
+            phase: ERROR,
             context: { error: e },
             sentMsg: setCountMessage
           });
@@ -136,7 +139,7 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
     setCountMessage = await messageHandler({
       message,
       command: "setcount",
-      phase: MESSAGE_PHASE.DONE,
+      phase: DONE,
       context: { userId, count, rolesAssigned },
       sentMsg: setCountMessage
     });
@@ -145,7 +148,7 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
     setCountMessage = await messageHandler({
       message,
       command: "setcount",
-      phase: MESSAGE_PHASE.ERROR,
+      phase: ERROR,
       context: { error: e },
       sentMsg: setCountMessage
     });
@@ -159,6 +162,7 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
 // iterate through users for roles
 // update roles accordingly through discord API
 export const updateBulkRolesHandler = async ({ message, vcRoleCount, imgRoleCount }) => {
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
   const startTime = Date.now();
   const elapsed = () => Math.floor((Date.now() - startTime) / 1000) + "s";
 
@@ -168,7 +172,7 @@ export const updateBulkRolesHandler = async ({ message, vcRoleCount, imgRoleCoun
     statusMsg = await messageHandler({
       message,
       command: "updatebulkroles",
-      phase: MESSAGE_PHASE.START,
+      phase: START,
       context: { elapsed: elapsed() },
       sentMsg: statusMsg
     });
@@ -178,7 +182,7 @@ export const updateBulkRolesHandler = async ({ message, vcRoleCount, imgRoleCoun
     statusMsg = await messageHandler({
       message,
       command: "updatebulkroles",
-      phase: MESSAGE_PHASE.DONE,
+      phase: DONE,
       context: { elapsed: elapsed() },
       sentMsg: statusMsg
     });
@@ -186,7 +190,7 @@ export const updateBulkRolesHandler = async ({ message, vcRoleCount, imgRoleCoun
     statusMsg = await messageHandler({
       message,
       command: "updatebulkroles",
-      phase: MESSAGE_PHASE.ERROR,
+      phase: ERROR,
       context: { error: err },
       sentMsg: statusMsg
     });
@@ -195,6 +199,7 @@ export const updateBulkRolesHandler = async ({ message, vcRoleCount, imgRoleCoun
 
 
 export const pongHandler = async (message) => {
+  const { START, DONE } = MESSAGE_PHASE;
   const startTime = Date.now();
   const elapsed = () => (Date.now() - startTime) + "ms";
 
@@ -203,7 +208,7 @@ export const pongHandler = async (message) => {
   statusMsg = await messageHandler({
     message,
     command: "ping",
-    phase: MESSAGE_PHASE.START,
+    phase: START,
     context: { elapsed: elapsed() },
     sentMsg: statusMsg
   });
@@ -211,7 +216,7 @@ export const pongHandler = async (message) => {
   statusMsg = await messageHandler({
     message,
     command: "ping",
-    phase: MESSAGE_PHASE.DONE,
+    phase: DONE,
     context: { elapsed: elapsed() },
     sentMsg: statusMsg
   });
@@ -219,13 +224,15 @@ export const pongHandler = async (message) => {
 
 
 export const targetUserResetHandler = async ({ message, command, userId }) => {
+  const { VC_ROLE, IMG_ROLE, MUTED_ROLE } = ASSIGNABLE_ROLES;
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
 
   let targetUserMsg;
 
   targetUserMsg = await messageHandler({
     message,
     command: "targetuserreset",
-    phase: MESSAGE_PHASE.START,
+    phase: START,
     context: { command, userId },
     sentMsg: targetUserMsg
   });
@@ -241,7 +248,9 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
       // so we can just try to remove the roles and if not it will reset them on message increment anyway
       const member = await message.guild.members.fetch(userId);
       if (member) {
-        await member.roles.remove([ASSIGNABLE_ROLES.vcRole, ASSIGNABLE_ROLES.imgRole]);
+        await member.roles.remove([VC_ROLE, IMG_ROLE]);
+        // for whatever reason dyno sometimes doesnt add the muted role on mute, so we'll just add it ourselves
+        await member.roles.add(MUTED_ROLE); // muted role
         console.log(`Removed assignable roles from user ${userId}`);
 
       }
@@ -249,7 +258,7 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
       targetUserMsg = await messageHandler({
         message,
         command: "targetuserreset",
-        phase: MESSAGE_PHASE.DONE,
+        phase: DONE,
         context: { userId },
         sentMsg: targetUserMsg
       });
@@ -259,7 +268,7 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
       targetUserMsg = await messageHandler({
         message,
         command: "targetuserreset",
-        phase: MESSAGE_PHASE.ERROR,
+        phase: ERROR,
         context: { error: err },
         sentMsg: targetUserMsg
       });
@@ -273,7 +282,7 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
       targetUserMsg = await messageHandler({
         message,
         command: "targetuserreset",
-        phase: MESSAGE_PHASE.DONE,
+        phase: DONE,
         context: { userId },
         sentMsg: targetUserMsg
       });
@@ -283,7 +292,7 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
       targetUserMsg = await messageHandler({
         message,
         command: "targetuserreset",
-        phase: MESSAGE_PHASE.ERROR,
+        phase: ERROR,
         context: { error: err },
         sentMsg: targetUserMsg
       });
@@ -293,6 +302,7 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
 };
 
 
+//legacy
 export const roleRolloutHandler = async (message) => {
   const allDbUsers = await fetchEligibleUsers();
   const BATCH_SIZE = 100;
