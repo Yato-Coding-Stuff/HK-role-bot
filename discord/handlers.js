@@ -24,7 +24,25 @@ export const incrementUserCountHandler = async (message) => {
     const updatedUser = await updateUserMessageCount(message.author.id);
 
     const roleIds = member.roles.cache.map(role => role.id);
-    const { has_role_vc, has_role_image } = updatedUser;
+    const { has_role_vc, has_role_image, messageCount } = updatedUser;
+
+    // weird catch where dyno our bot does not take roles fast enough before a dyno mute
+    // dyno will then assign back roles after mute was done
+    // this will see if the messageCount is reset and if the user has roles, take them away
+    if (
+      messageCount < 150 &&
+      (
+        roleIds.includes(ASSIGNABLE_ROLES.vcRole) ||
+        roleIds.includes(ASSIGNABLE_ROLES.imgRole)
+      )
+    ) {
+      try {
+        await member.roles.remove([ASSIGNABLE_ROLES.vcRole, ASSIGNABLE_ROLES.imgRole]);
+        console.log(`Removed assignable roles from ${member.user.tag} due to message count reset to ${messageCount}`);
+      } catch (error) {
+        console.error("Error removing roles after message count reset:", error);
+      }
+    }
 
     if (has_role_vc) {
       if (!roleIds.includes(ASSIGNABLE_ROLES.vcRole)) {
