@@ -27,9 +27,9 @@ export const incrementUserCountHandler = async (message) => {
     const roleIds = member.roles.cache.map(role => role.id);
     const rolesToRemove = roleIds.filter(roleId => roleId === ASSIGNABLE_ROLES.vcRole || roleId === ASSIGNABLE_ROLES.imgRole);
 
-    //catch where dyno our bot does not take roles fast enough before a dyno mute
+    // catch for when dyno outpaces and removes roles before we can remove our own
     // dyno will then assign back roles after mute was done
-    // this will see if the messageCount is reset and if the user has roles, take them away
+    // once member sends 1 message, this will see if the messageCount is reset and if the user has roles, take them away
     if (
       messageCount < 150 &&
       rolesToRemove.length

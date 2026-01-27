@@ -62,7 +62,7 @@ export const COMMAND_MESSAGES = {
 
   targetuserreset: {
     start: ({ command, userId }) => `command ${command} issued for ${userId}\n⏳ Resetting perm roles...`,
-    done: ({ userId }) => `✅ Finished resetting perm roles for ${userId} \n`,
+    done: ({ userId }) => `✅ Finished resetting perm roles for ${userId}`,
     error: ({ error }) =>
       `❌ Failed to reset user roles, This may be because Dyno removed first, but will remove upon unmute\n${error} `
   },
