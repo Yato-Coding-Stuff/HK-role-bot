@@ -1,7 +1,7 @@
 import { discordClient as client } from './discord.js';
 import { skipUser, formatElapsedSeconds } from './utils.js';
 import { updateUserMessageCount, updateBulkRoleCount, targetUserReset, fetchEligibleUsers, setUserMessageCount } from '../db/helper.js';
-import { ASSIGNABLE_ROLES, MESSAGE_PHASE, COMMAND_LIST } from './constants.js';
+import { ASSIGNABLE_ROLES, MESSAGE_PHASE, COMMAND_LIST, HOME_GUILD_ID } from './constants.js';
 import { messageHandler } from './message.js';
 
 
@@ -19,6 +19,10 @@ export const incrementUserCountHandler = async (message) => {
     }
   }
 
+  if (message.guild?.id !== HOME_GUILD_ID) {
+    console.log(`Message received from unauthorized guild: ${message.guild?.name} (${message.guild?.id}). Ignoring.`);
+    return;
+  }
   if (!member || skipUser(member)) return;
 
   try {
@@ -223,6 +227,91 @@ export const pongHandler = async (message) => {
     context: { elapsed: elapsed() },
     sentMsg: statusMsg
   });
+};
+
+
+export const seeServerHandler = async ({ message }) => {
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
+  let statusMsg;
+
+  try {
+    statusMsg = await messageHandler({
+      message,
+      command: "seeservers",
+      phase: START,
+      sentMsg: statusMsg
+    });
+
+    const servers = client.guilds.cache.map(guild => ({
+      name: guild.name,
+      id: guild.id,
+      memberCount: guild.memberCount
+    }));
+
+    statusMsg = await messageHandler({
+      message,
+      command: "seeservers",
+      phase: DONE,
+      context: { servers },
+      sentMsg: statusMsg
+    });
+  } catch (e) {
+    console.error("Error fetching servers:", e);
+    statusMsg = await messageHandler({
+      message,
+      command: "seeservers",
+      phase: ERROR,
+      context: { error: e },
+      sentMsg: statusMsg
+    });
+  }
+};
+
+
+export const leaveServersHandler = async ({ message }) => {
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
+  let statusMsg;
+
+  try {
+    statusMsg = await messageHandler({
+      message,
+      command: "leaveservers",
+      phase: START,
+      sentMsg: statusMsg
+    });
+
+    const guildsToLeave = client.guilds.cache.filter(guild => guild.id !== HOME_GUILD_ID && guild.id !== process.env.HOME_TEST_GUILD_ID);
+    const left = [];
+    const failed = [];
+
+    await Promise.all(guildsToLeave.map(async (guild) => {
+      try {
+        await guild.leave();
+        left.push(guild.name);
+        console.log(`Left guild: ${guild.name} (${guild.id})`);
+      } catch (e) {
+        failed.push(guild.name);
+        console.error(`Failed to leave guild ${guild.name} (${guild.id}):`, e);
+      }
+    }));
+
+    statusMsg = await messageHandler({
+      message,
+      command: "leaveservers",
+      phase: DONE,
+      context: { left, failed },
+      sentMsg: statusMsg
+    });
+  } catch (e) {
+    console.error("Error leaving servers:", e);
+    statusMsg = await messageHandler({
+      message,
+      command: "leaveservers",
+      phase: ERROR,
+      context: { error: e },
+      sentMsg: statusMsg
+    });
+  }
 };
 
 

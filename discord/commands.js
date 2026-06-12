@@ -1,5 +1,5 @@
 import { isCommand, skipUser as hasStaffPermission } from './utils.js';
-import { pongHandler, updateBulkRolesHandler, incrementUserCountHandler, targetUserResetHandler, invalidPermissionsHandler, roleRolloutHandler, setUserMessageCountHandler } from './handlers.js';
+import { pongHandler, updateBulkRolesHandler, incrementUserCountHandler, targetUserResetHandler, invalidPermissionsHandler, roleRolloutHandler, setUserMessageCountHandler, seeServerHandler, leaveServersHandler } from './handlers.js';
 import { PREFIXES, BOT_PREFIX, DYNO_PREFIX } from './constants.js';
 
 
@@ -51,6 +51,14 @@ export const commandHandler = async ({
       // bulk rolls out roles for users in DB
       if (command === "rollout") {
         await roleRolloutHandler(message);
+      }
+
+      if (command === "seeservers") {
+        await seeServerHandler({ message });
+      }
+
+      if (command === "leaveservers") {
+        await leaveServersHandler({ message });
       }
     }
 
