@@ -1,5 +1,5 @@
 import { discordClient as client } from './discord.js';
-import { skipUser, formatElapsedSeconds } from './utils.js';
+import { skipUser, formatElapsedSeconds, resolveUserId } from './utils.js';
 import { updateUserMessageCount, updateBulkRoleCount, targetUserReset, fetchEligibleUsers, setUserMessageCount } from '../db/helper.js';
 import { ASSIGNABLE_ROLES, MESSAGE_PHASE, COMMAND_LIST, HOME_GUILD_ID } from './constants.js';
 import { messageHandler } from './message.js';
@@ -315,11 +315,18 @@ export const leaveServersHandler = async ({ message }) => {
 };
 
 
-export const targetUserResetHandler = async ({ message, command, userId }) => {
+export const targetUserResetHandler = async ({ message, command, user }) => {
   const { VC_ROLE, IMG_ROLE, MUTED_ROLE } = ASSIGNABLE_ROLES;
   const { START, DONE, ERROR } = MESSAGE_PHASE;
 
   let targetUserMsg;
+
+  const userId = await resolveUserId({ user, guild: message.guild });
+
+  if (!userId) {
+    await message.channel.send(`❌ Could not resolve user \`${user}\` — try using their ID instead.`);
+    return;
+  }
 
   targetUserMsg = await messageHandler({
     message,
@@ -329,7 +336,6 @@ export const targetUserResetHandler = async ({ message, command, userId }) => {
     sentMsg: targetUserMsg
   });
 
-  // this will fail if the command is ban because the user wont be in the guild anymore
   if (command !== "banf" || command === "kick") {
     try {
       await targetUserReset(userId);

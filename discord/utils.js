@@ -25,3 +25,14 @@ export const formatElapsedSeconds = (totalSeconds) => {
   const secs = (totalSeconds % 60).toString().padStart(2, "0");
   return `${hrs}:${mins}:${secs}`;
 }
+
+export const resolveUserId = async ({ user, guild }) => {
+  const mentionMatch = user.match(/^<@!?(\d+)>$/);
+  if (mentionMatch) return mentionMatch[1];
+
+  if (/^\d{17,19}$/.test(user)) return user;
+
+  const results = await guild.members.fetch({ query: user, limit: 5 });
+  const match = results.find(m => m.user.username === user);
+  return match?.user.id ?? null;
+};

@@ -73,7 +73,7 @@ export const commandHandler = async ({
       }
       // reset target user's roles
       if (command === "mute" || command === "banf" || command === "kick") {
-        await targetUserResetHandler({ message, command, userId: args[0] });
+        await targetUserResetHandler({ message, command, user: args[0] });
       }
     }
 
