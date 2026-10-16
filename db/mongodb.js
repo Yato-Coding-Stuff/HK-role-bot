@@ -12,6 +12,7 @@ const connectToMongoDB = async () => {
     console.log("Connected to MongoDB");
     await client.db().admin().ping();
     console.log("MongoDB connection is valid");
+    await collection.createIndex({ userId: 1 }, { unique: true });
   } catch (e) {
     console.error("Failed to connect to MongoDB:", e);
   }

@@ -1,132 +1,147 @@
 import { collection } from './mongodb.js';
 
-export const updateUserMessageCount = async (userId, userName) => {
+
+export const updateUserMessageCount = async (userId, userName, joinedTimestamp) => {
   try {
     const updatedUser = await collection.findOneAndUpdate(
       { userId },
       [
         {
           $set: {
-            messageCount: { $add: [{ $ifNull: ["$messageCount", 0] }, 1] }
-          }
-        },
-        {
-          $set: {
-            has_role_vc: { $cond: [{ $gte: ["$messageCount", 150] }, true, false] },
-            has_role_image: { $cond: [{ $gte: ["$messageCount", 300] }, true, false] }
+            messageCount: {
+              $add: [{ $ifNull: ["$messageCount", 0] }, 1]
+            },
+            joinedTimestamp: {
+              $ifNull: ["$joinedTimestamp", joinedTimestamp]
+            },
+            infractionTier: {
+              $ifNull: ["$infractionTier", 1]
+            },
+            optedOut: {
+              $ifNull: ["$optedOut", false]
+            }
           }
         }
       ],
-      {
-        upsert: true,
-        returnDocument: "after" // returns the document AFTER update
-      }
-    );
-
-
-    if (updatedUser.upsertedCount > 0) {
-      console.log(`Inserted new document for user ${userName}`);
-    } else {
-      console.log(`Updated message count for existing user ${userName}`);
-    }
-
-    return updatedUser;
-
-  } catch (error) {
-    console.error("Error updating user message count:", error);
-  }
-};
-
-export const setUserMessageCount = async ({ userId, count }) => {
-  try {
-    const result = await collection.findOneAndUpdate(
-      { userId },
-      {
-        $set: {
-          messageCount: count,
-          has_role_vc: count >= 150,
-          has_role_image: count >= 300
-        }
-      },
       {
         upsert: true,
         returnDocument: "after"
       }
     );
 
-    if (result.lastErrorObject?.upserted) {
-      console.log(`Inserted new document for user ${userId}`);
-    } else {
-      console.log(`Updated message count for existing user ${userId}`);
-    }
+    const user = updatedUser;
+    console.log(`Updated message count for ${userName}`);
 
-    return result
+    return user;
+  } catch (error) {
+    console.error("Error updating user message count:", error);
+    throw error;
+  }
+};
+
+export const setUserMessageCount = async ({
+  userId,
+  count,
+  joinedTimestamp
+}) => {
+  try {
+    const result = await collection.findOneAndUpdate(
+      { userId },
+      [
+        {
+          $set: {
+            messageCount: count,
+            joinedTimestamp: {
+              $ifNull: ["$joinedTimestamp", joinedTimestamp]
+            },
+            infractionTier: {
+              $ifNull: ["$infractionTier", 1]
+            }
+          }
+        }
+      ],
+      {
+        upsert: true,
+        returnDocument: "after"
+      }
+    );
+
+    console.log(`Set message count for user ${userId}`);
+
+    return result;
   } catch (error) {
     console.error("Error setting user message count:", error);
     throw error;
   }
 };
 
-
-export const updateBulkRoleCount = async ({ vcRoleCount, imgRoleCount }) => {
+export const getUserStatus = async (userId) => {
   try {
-    await collection.updateMany(
-      {},
-      [
-        {
-          $set: {
-            has_role_vc: { $gte: ["$messageCount", vcRoleCount] },
-            has_role_image: { $gte: ["$messageCount", imgRoleCount] }
-          }
-        },
-        {
-          $unset: "has_role_bypass_slowmode"
+    const user = await collection.findOne(
+      { userId },
+      {
+        projection: {
+          _id: 0,
+          messageCount: 1,
+          joinedTimestamp: 1,
+          infractionTier: 1,
+          optedOut: 1
         }
-      ]
+      }
     );
-    console.log(`Bulk updated role counts \n
-      VC Role Count Threshold: ${vcRoleCount}\n
-      Image Role Count Threshold: ${imgRoleCount}\n
-      `);
+
+    return {
+      messageCount: user?.messageCount ?? 0,
+      joinedTimestamp: user?.joinedTimestamp ?? null,
+      infractionTier: user?.infractionTier ?? 1,
+      optedOut: user?.optedOut ?? false
+    };
   } catch (error) {
-    console.error("Error updating user message count:", error);
+    console.error("Error fetching user status:", error);
     throw error;
   }
 };
 
-export const targetUserReset = async (userId) => {
+
+export const targetUserReset = async (userId, joinedTimestamp) => {
   try {
     const updatedUser = await collection.findOneAndUpdate(
       { userId },
-      {
-        $set: {
-          messageCount: 0,
-          has_role_vc: false,
-          has_role_image: false
+      [
+        {
+          $set: {
+            messageCount: 0,
+            joinedTimestamp: {
+              $ifNull: ["$joinedTimestamp", joinedTimestamp]
+            },
+            infractionTier: {
+              $add: [{ $ifNull: ["$infractionTier", 1] }, 1]
+            }
+          }
         }
-      },
+      ],
       {
         upsert: true,
         returnDocument: "after"
       }
     );
 
-    return updatedUser
+    return updatedUser;
   } catch (error) {
     console.error("Error resetting user message count:", error);
     throw error;
   }
-}
+};
 
-
-export const fetchEligibleUsers = async () => {
+export const setUserOptOutStatus = async (userId, optedOut) => {
   try {
-    //we're fetching just the users with over 150 messages for role rollout
-    return await collection
-      .find({ messageCount: { $gte: 150 } })
-      .toArray();
+    await collection.updateOne(
+      { userId },
+      { $set: { optedOut } },
+      { upsert: true }
+    );
   } catch (error) {
-    console.error("Error fetching users with messageCount >= 150:", error);
+    console.error("Error updating user opt-out status:", error);
     throw error;
   }
 };

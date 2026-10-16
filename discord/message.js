@@ -1,20 +1,27 @@
-import { COMMAND_MESSAGES, MESSAGE_PHASE } from "./constants.js";
-
-
+import {
+  COMMAND_MESSAGES,
+  MESSAGE_PHASE,
+  RESPONSE_MESSAGES
+} from "./constants.js";
 
 export const messageHandler = async ({
   message,
   command,
   phase = MESSAGE_PHASE.START,
   context = {},
-  sentMsg
+  sentMsg,
+  type = "command"
 }) => {
-  const messages = COMMAND_MESSAGES[command];
+  const messageSet =
+    type === "response" ? RESPONSE_MESSAGES : COMMAND_MESSAGES;
+
+  const messages = messageSet[command];
   if (!messages || !messages[phase]) return sentMsg;
 
-  const content = typeof messages[phase] === "function"
-    ? messages[phase](context)
-    : messages[phase];
+  const content =
+    typeof messages[phase] === "function"
+      ? messages[phase](context)
+      : messages[phase];
 
   try {
     if (!sentMsg) {
@@ -23,7 +30,10 @@ export const messageHandler = async ({
       await sentMsg.edit(content);
     }
   } catch (err) {
-    console.error(`Error sending/updating message for ${command} [${phase}]:`, err);
+    console.error(
+      `Error sending/updating ${type} message for ${command} [${phase}]:`,
+      err
+    );
   }
 
   return sentMsg;

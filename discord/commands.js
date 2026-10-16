@@ -1,5 +1,5 @@
 import { isCommand, skipUser as hasStaffPermission } from './utils.js';
-import { pongHandler, updateBulkRolesHandler, incrementUserCountHandler, targetUserResetHandler, invalidPermissionsHandler, roleRolloutHandler, setUserMessageCountHandler, seeServerHandler, leaveServersHandler } from './handlers.js';
+import { pongHandler, incrementUserCountHandler, targetUserResetHandler, invalidPermissionsHandler, setUserMessageCountHandler, checkEligibilityHandler, seeServerHandler, leaveServersHandler, optOutHandler } from './handlers.js';
 import { PREFIXES, BOT_PREFIX, DYNO_PREFIX } from './constants.js';
 
 
@@ -24,7 +24,6 @@ export const commandHandler = async ({
     // commands for our bot
     if (usedPrefix === BOT_PREFIX) {
 
-
       // ping command
       if (command === "ping") {
         pongHandler(message);
@@ -39,18 +38,11 @@ export const commandHandler = async ({
         });
       }
 
-      // legacy (kept for transparency)
-      // mass updates count threshold for each role
-      if (command === "updatebulkroles") {
-        await updateBulkRolesHandler({
-          command,
-          vcRoleCount: Number(args[0]),
-          imgRoleCount: Number(args[1])
+      if (command === "checkel") {
+        await checkEligibilityHandler({
+          message,
+          user: args[0]
         });
-      }
-      // bulk rolls out roles for users in DB
-      if (command === "rollout") {
-        await roleRolloutHandler(message);
       }
 
       if (command === "seeservers") {
@@ -59,6 +51,10 @@ export const commandHandler = async ({
 
       if (command === "leaveservers") {
         await leaveServersHandler({ message });
+      }
+
+      if (command === "optout") {
+        await optOutHandler({ message });
       }
     }
 
@@ -72,7 +68,7 @@ export const commandHandler = async ({
         return;
       }
       // reset target user's roles
-      if (command === "mute" || command === "banf" || command === "kick") {
+      if (command === "mute" || command === "banf" || command === "kick" || command === "softbanf") {
         await targetUserResetHandler({ message, command, user: args[0] });
       }
     }

@@ -1,11 +1,12 @@
 import { Client, GatewayIntentBits } from 'discord.js';
-const { Guilds, GuildMessages, MessageContent } = GatewayIntentBits;
+const { Guilds, GuildMessages, MessageContent, GuildMembers } = GatewayIntentBits;
 
 
 import { commandHandler } from './commands.js';
+import { syncRestoredRolesHandler } from './handlers.js';
 import { HOME_GUILD_ID } from './constants.js';
 
-const client = new Client({ intents: [Guilds, GuildMessages, MessageContent] });
+const client = new Client({ intents: [Guilds, GuildMessages, MessageContent, GuildMembers] });
 
 
 client.on('clientReady', () => {
@@ -19,6 +20,11 @@ client.on('guildCreate', async (guild) => {
     console.log(`Unauthorized guild join attempt: ${guild.name} (${guild.id}). Leaving.`);
     await guild.leave();
   }
+});
+
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+  if (newMember.guild.id !== HOME_GUILD_ID) return;
+  await syncRestoredRolesHandler(oldMember, newMember);
 });
 
 client.on("messageCreate", async (message) => {

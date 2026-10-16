@@ -1,0 +1,1 @@
+privacy policy [can be found here](https://gist.github.com/Zaliant1/21fbb8e52d134c8f28a69368daba7350)

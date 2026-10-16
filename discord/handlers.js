@@ -1,17 +1,18 @@
 import { discordClient as client } from './discord.js';
-import { skipUser, formatElapsedSeconds, resolveUserId } from './utils.js';
-import { updateUserMessageCount, updateBulkRoleCount, targetUserReset, fetchEligibleUsers, setUserMessageCount } from '../db/helper.js';
+import { skipUser, resolveUserId, getRoleEligibility } from './utils.js';
+import { updateUserMessageCount, targetUserReset, setUserMessageCount, getUserStatus } from '../db/helper.js';
 import { ASSIGNABLE_ROLES, MESSAGE_PHASE, COMMAND_LIST, HOME_GUILD_ID } from './constants.js';
 import { messageHandler } from './message.js';
 
 
-// each time a user types we bump their count by 1
-// unless staff or bot
-export const incrementUserCountHandler = async (message) => {
-  const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
-  let member = message.member || (message.guild && message.guild.members.cache.get(message.author.id));
 
-  if (!member && message.guild) {
+
+export const incrementUserCountHandler = async (message) => {
+  if (message.guild?.id !== HOME_GUILD_ID) return;
+
+  let member = message.member;
+
+  if (!member) {
     try {
       member = await message.guild.members.fetch(message.author.id);
     } catch {
@@ -19,64 +20,114 @@ export const incrementUserCountHandler = async (message) => {
     }
   }
 
-  if (message.guild?.id !== HOME_GUILD_ID) {
-    console.log(`Message received from unauthorized guild: ${message.guild?.name} (${message.guild?.id}). Ignoring.`);
-    return;
-  }
   if (!member || skipUser(member)) return;
 
-  try {
-    const updatedUser = await updateUserMessageCount(message.author.id, message.author.tag);
-    const { has_role_vc, has_role_image, messageCount } = updatedUser;
+  const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
+  const { tag } = member.user;
 
-    const roleIds = member.roles.cache.map(role => role.id);
-    const rolesToRemove = roleIds.filter(roleId => {
-      if (roleId === VC_ROLE && messageCount < 150) return true;
-      if (roleId === IMG_ROLE && messageCount < 300) return true;
-      return false;
+  try {
+    const {
+      messageCount = 0,
+      joinedTimestamp,
+      infractionTier = 1,
+      optedOut = false
+    } = await updateUserMessageCount(
+      message.author.id,
+      message.author.tag,
+      member.joinedTimestamp
+    );
+
+    if (optedOut) {
+      console.log(`${tag} has opted out of role assignment. skipping increment`);
+      return;
+    }
+
+
+    const eligibleRoles = getRoleEligibility({
+      messageCount,
+      joinedTimestamp: joinedTimestamp ?? member.joinedTimestamp,
+      infractionTier,
+      optedOut
     });
 
-    // catch for when dyno outpaces and removes roles before we can remove our own
-    // dyno will then assign back roles after mute was done
-    // once member sends 1 message, this will see if the messageCount is reset and if the user has roles, take them away
-    if (
-      rolesToRemove.length
-    ) {
-      try {
-        await member.roles.remove(rolesToRemove);
-        console.log(`Removed assignable roles from ${member.user.tag} due to message count reset to ${messageCount}`);
-      } catch (error) {
-        console.error("Error removing roles after message count reset:", error);
-      }
-    }
+    const roleMap = {
+      VC: VC_ROLE,
+      IMG: IMG_ROLE
+    };
 
-    if (has_role_vc) {
-      if (!roleIds.includes(VC_ROLE)) {
+    for (const [roleName, roleId] of Object.entries(roleMap)) {
+      const isEligible = eligibleRoles.includes(roleName);
+      const hasRole = member.roles.cache.has(roleId);
 
+      if (isEligible && !hasRole) {
         try {
-          await member.roles.add(VC_ROLE)
-          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for VC role, assigned`)
+          await member.roles.add(roleId);
+          console.log(`${tag} assigned ${roleName} role.`);
         } catch (error) {
-          console.error("Error assigning VC role:", error);
+          console.error(`Error assigning ${roleName} role:`, error);
+        }
+      } else if (!isEligible && hasRole) {
+        try {
+          await member.roles.remove(roleId);
+          console.log(`${tag} removed ineligible ${roleName} role.`);
+        } catch (error) {
+          console.error(`Error removing ${roleName} role:`, error);
         }
       }
     }
 
-    if (has_role_image) {
-      if (!roleIds.includes(IMG_ROLE)) {
-        try {
-          await member.roles.add(IMG_ROLE)
-          console.log(`${member.user.tag} reached message count of ${updatedUser.messageCount} for Image role, assigned`)
+  } catch (error) {
+    console.error("Error updating message count on messageCreate:", error);
+  }
+};
 
-        } catch (error) {
-          console.error("Error assigning Image role:", error);
-        }
-      }
+
+// Dyno restores a muted member's prior roles (including VC/Image) when their mute expires.
+// Check newly restored roles against current eligibility and remove any they're no longer eligible for.
+export const syncRestoredRolesHandler = async (oldMember, newMember) => {
+  const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
+
+  const vcAdded =
+    newMember.roles.cache.has(VC_ROLE) &&
+    !oldMember.roles.cache.has(VC_ROLE);
+
+  const imgAdded =
+    newMember.roles.cache.has(IMG_ROLE) &&
+    !oldMember.roles.cache.has(IMG_ROLE);
+
+  if (!vcAdded && !imgAdded) return;
+
+  const { tag } = newMember.user;
+
+  try {
+    const {
+      messageCount,
+      joinedTimestamp,
+      infractionTier,
+      optedOut
+    } = await getUserStatus(newMember.id);
+
+    const eligibility = getRoleEligibility({
+      messageCount,
+      joinedTimestamp: joinedTimestamp ?? newMember.joinedTimestamp,
+      infractionTier,
+      optedOut
+    });
+
+    const rolesToStrip = [
+      ...(vcAdded && !eligibility.VC.eligible ? [VC_ROLE] : []),
+      ...(imgAdded && !eligibility.IMG.eligible ? [IMG_ROLE] : [])
+    ];
+
+    if (rolesToStrip.length) {
+      await newMember.roles.remove(rolesToStrip);
+
+      console.log(
+        `Stripped ineligible restored role(s) from ${tag}: ${rolesToStrip.join(", ")}`
+      );
     }
-
-
-  } catch (e) {
-    console.error("Error updating message count on messageCreate:", e);
+  } catch (error) {
+    console.error(`Error syncing restored roles for ${tag}:`, error);
   }
 };
 
@@ -84,8 +135,9 @@ export const incrementUserCountHandler = async (message) => {
 export const setUserMessageCountHandler = async ({ message, userId, count }) => {
   const { START, DONE, ERROR } = MESSAGE_PHASE;
   const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
+
   let setCountMessage;
-  let rolesAssigned = [];
+
   try {
     setCountMessage = await messageHandler({
       message,
@@ -94,112 +146,177 @@ export const setUserMessageCountHandler = async ({ message, userId, count }) => 
       context: { userId, count },
       sentMsg: setCountMessage
     });
-    await setUserMessageCount({ userId, count });
 
     const member = await message.guild.members.fetch(userId);
-    const roleIds = member.roles.cache.map(role => role.id);
+    const { tag } = member.user;
 
-    if (count >= 150) {
-      if (!roleIds.includes(VC_ROLE)) {
+    const { optedOut } = await getUserStatus(userId);
 
-        try {
-          await member.roles.add(VC_ROLE)
-          rolesAssigned.push('VC');
-          console.log(`${member.user.tag} assigned VC role for set count of ${count}`)
+    if (optedOut) {
+      await messageHandler({
+        message,
+        command: "setcount",
+        phase: DONE,
+        context: { userId, optedOut: true },
+        sentMsg: setCountMessage
+      });
 
-        } catch (error) {
-          setCountMessage = await messageHandler({
-            message,
-            command: "setcount",
-            phase: ERROR,
-            context: { error: e },
-            sentMsg: setCountMessage
-          });
-          console.error("Error assigning VC role:", error);
-        }
-      }
+      return;
     }
 
-    if (count >= 300) {
-      if (!roleIds.includes(IMG_ROLE)) {
+    const updatedUser = await setUserMessageCount({
+      userId,
+      count,
+      joinedTimestamp: member.joinedTimestamp
+    });
 
-        try {
-          await member.roles.add(IMG_ROLE)
-          rolesAssigned.push('VC');
-          console.log(`${member.user.tag} assigned Image role for set count of ${count}`)
+    const messageCount = updatedUser.messageCount ?? count;
+    const joinedTimestamp =
+      updatedUser.joinedTimestamp ?? member.joinedTimestamp;
+    const infractionTier = updatedUser.infractionTier ?? 1;
 
+    const eligibility = getRoleEligibilityDetails({
+      messageCount,
+      joinedTimestamp,
+      infractionTier
+    });
 
-        } catch (error) {
-          setCountMessage = await messageHandler({
-            message,
-            command: "setcount",
-            phase: ERROR,
-            context: { error: e },
-            sentMsg: setCountMessage
-          });
-          console.error("Error assigning VC role:", error);
-        }
+    const roleStatus = [];
+
+    const processRole = async ({ name, roleId, details }) => {
+      if (member.roles.cache.has(roleId)) {
+        roleStatus.push({
+          role: name,
+          status: "already_has_role"
+        });
+        return;
       }
-    }
 
+      if (!details.eligible) {
+        roleStatus.push({
+          role: name,
+          status: "not_eligible"
+        });
+        return;
+      }
+
+      try {
+        await member.roles.add(roleId);
+
+        roleStatus.push({
+          role: name,
+          status: "assigned",
+          reason: details.reason
+        });
+
+        console.log(`${tag} assigned ${name} role through ${details.reason}`);
+      } catch (error) {
+        roleStatus.push({
+          role: name,
+          status: "assignment_failed"
+        });
+
+        console.error(`Error assigning ${name} role:`, error);
+      }
+    };
+
+    await processRole({
+      name: "VC",
+      roleId: VC_ROLE,
+      details: eligibility.VC
+    });
+
+    await processRole({
+      name: "Image",
+      roleId: IMG_ROLE,
+      details: eligibility.IMG
+    });
 
     setCountMessage = await messageHandler({
       message,
       command: "setcount",
       phase: DONE,
-      context: { userId, count, rolesAssigned },
+      context: {
+        userId,
+        count: messageCount,
+        roleStatus
+      },
       sentMsg: setCountMessage
     });
-  } catch (e) {
-    console.error("Error setting user message count:", e);
+  } catch (error) {
+    console.error("Error setting user message count:", error);
+
     setCountMessage = await messageHandler({
       message,
       command: "setcount",
       phase: ERROR,
-      context: { error: e },
+      context: { error },
       sentMsg: setCountMessage
     });
   }
+};
 
-}
-
-
-
-// get entire db doc
-// iterate through users for roles
-// update roles accordingly through discord API
-export const updateBulkRolesHandler = async ({ message, vcRoleCount, imgRoleCount }) => {
+export const checkEligibilityHandler = async ({ message, user }) => {
   const { START, DONE, ERROR } = MESSAGE_PHASE;
-  const startTime = Date.now();
-  const elapsed = () => Math.floor((Date.now() - startTime) / 1000) + "s";
+  const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
 
-  let statusMsg;
+  let checkMessage;
+  let userId;
 
   try {
-    statusMsg = await messageHandler({
+    userId = await resolveUserId({ user, guild: message.guild });
+
+    if (!userId) {
+      await message.channel.send(
+        `❌ Could not resolve user \`${user}\` — try using their ID instead.`
+      );
+      return;
+    }
+
+    checkMessage = await messageHandler({
       message,
-      command: "updatebulkroles",
+      command: "checkel",
       phase: START,
-      context: { elapsed: elapsed() },
-      sentMsg: statusMsg
+      context: { userId },
+      sentMsg: checkMessage
     });
 
-    await updateBulkRoleCount({ vcRoleCount, imgRoleCount });
+    const member = await message.guild.members.fetch(userId);
 
-    statusMsg = await messageHandler({
+    const vcHasRole = member.roles.cache.has(VC_ROLE);
+    const imgHasRole = member.roles.cache.has(IMG_ROLE);
+
+    const {
+      messageCount,
+      joinedTimestamp,
+      infractionTier,
+      optedOut
+    } = await getUserStatus(userId);
+
+    checkMessage = await messageHandler({
       message,
-      command: "updatebulkroles",
+      command: "checkel",
       phase: DONE,
-      context: { elapsed: elapsed() },
-      sentMsg: statusMsg
+      context: {
+        userId,
+        messageCount,
+        joinedTimestamp: joinedTimestamp ?? member.joinedTimestamp,
+        infractionTier,
+        optedOut,
+        vcHasRole,
+        imgHasRole
+      },
+      sentMsg: checkMessage
     });
-  } catch (err) {
-    statusMsg = await messageHandler({
+  } catch (error) {
+    console.error("Error checking user eligibility:", error);
+
+    checkMessage = await messageHandler({
       message,
-      command: "updatebulkroles",
+      command: "checkel",
       phase: ERROR,
-      context: { error: err },
-      sentMsg: statusMsg
+      context: { error },
+      sentMsg: checkMessage
     });
   }
 };
@@ -330,7 +447,7 @@ export const targetUserResetHandler = async ({ message, command, user }) => {
 
   targetUserMsg = await messageHandler({
     message,
-    command: "targetuserreset",
+    response: "targetuserreset",
     phase: START,
     context: { command, userId },
     sentMsg: targetUserMsg
@@ -338,7 +455,7 @@ export const targetUserResetHandler = async ({ message, command, user }) => {
 
   if (command !== "banf" || command === "kick") {
     try {
-      await targetUserReset(userId);
+      await targetUserReset(userId, message.createdTimestamp);
       // this might ALSO fail because dyno might remove the roles on mute before our bot can get to it
       // so we can just try to remove the roles and if not it will reset them on message increment anyway
       const member = await message.guild.members.fetch(userId);
@@ -352,7 +469,7 @@ export const targetUserResetHandler = async ({ message, command, user }) => {
 
       targetUserMsg = await messageHandler({
         message,
-        command: "targetuserreset",
+        response: "targetuserreset",
         phase: DONE,
         context: { userId },
         sentMsg: targetUserMsg
@@ -362,7 +479,7 @@ export const targetUserResetHandler = async ({ message, command, user }) => {
       console.error("Error resetting target user roles:", err);
       targetUserMsg = await messageHandler({
         message,
-        command: "targetuserreset",
+        response: "targetuserreset",
         phase: ERROR,
         context: { error: err },
         sentMsg: targetUserMsg
@@ -372,11 +489,11 @@ export const targetUserResetHandler = async ({ message, command, user }) => {
 
   if (command === "banf" || command === "kick") {
     try {
-      await targetUserReset(userId);
+      await targetUserReset(userId, message.createdTimestamp);
       console.log(`Removed assignable roles from user ${userId}`);
       targetUserMsg = await messageHandler({
         message,
-        command: "targetuserreset",
+        response: "targetuserreset",
         phase: DONE,
         context: { userId },
         sentMsg: targetUserMsg
@@ -386,7 +503,7 @@ export const targetUserResetHandler = async ({ message, command, user }) => {
       console.error("Error resetting target user roles:", err);
       targetUserMsg = await messageHandler({
         message,
-        command: "targetuserreset",
+        response: "targetuserreset",
         phase: ERROR,
         context: { error: err },
         sentMsg: targetUserMsg
@@ -396,101 +513,107 @@ export const targetUserResetHandler = async ({ message, command, user }) => {
 
 };
 
+export const optOutHandler = async ({ message, optedOut = true }) => {
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
+  const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
 
-//legacy
-export const roleRolloutHandler = async (message) => {
-  const allDbUsers = await fetchEligibleUsers();
-  const BATCH_SIZE = 100;
-  const startTime = Date.now();
-
-  const elapsed = () => formatElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
-
-  let processed = {
-    processed: 0,
-    updated: 0,
-    skipped: 0,
-    left: allDbUsers.length,
-  };
-
-  let rolloutMsg = await messageHandler({
-    message,
-    command: "rollout",
-    phase: MESSAGE_PHASE.START,
-  });
-
-  const messageInterval = setInterval(async () => {
-    rolloutMsg = await messageHandler({
-      message,
-      command: "rollout",
-      phase: MESSAGE_PHASE.PROGRESS,
-      context: { processed, elapsed: elapsed() },
-      sentMsg: rolloutMsg,
-    });
-  }, 1000);
+  let statusMsg;
+  const command = optedOut ? "optout" : "optin";
 
   try {
-    for (let i = 0; i < allDbUsers.length; i += BATCH_SIZE) {
-      const batch = allDbUsers.slice(i, i + BATCH_SIZE);
+    statusMsg = await messageHandler({
+      message,
+      command,
+      phase: START,
+      sentMsg: statusMsg
+    });
 
-      await Promise.all(batch.map(async (dbUser) => {
-        let updated = false;
+    const member = await message.guild.members.fetch(message.author.id);
+
+    // Save the user's opt-out preference.
+    await setUserOptOutStatus(message.author.id, optedOut);
+
+    const roleMap = {
+      VC: VC_ROLE,
+      IMG: IMG_ROLE
+    };
+
+    if (optedOut) {
+      // Remove both roles when opting out.
+      for (const [roleName, roleId] of Object.entries(roleMap)) {
+        if (!member.roles.cache.has(roleId)) continue;
+
+        await member.roles.remove(roleId);
+        console.log(`${member.user.tag}: Removed ${roleName} role after opting out.`);
+      }
+    } else {
+      // Retrieve existing progress without resetting it.
+      const {
+        messageCount,
+        joinedTimestamp,
+        infractionTier,
+        optedOut
+      } = await getUserStatus(message.author.id);
+
+      const eligibleRoles = getRoleEligibility({
+        messageCount,
+        joinedTimestamp: joinedTimestamp ?? member.joinedTimestamp,
+        infractionTier,
+        optedOut
+      });
+
+      // Assign roles the user currently qualifies for.
+      for (const [roleName, roleId] of Object.entries(roleMap)) {
+        const isEligible = eligibleRoles.includes(roleName);
+
+        if (!isEligible) {
+          roleStatus.push({
+            role: roleName,
+            status: "not_eligible"
+          });
+          continue;
+        }
 
         try {
-          const member = await message.guild.members.fetch(dbUser.userId);
+          await member.roles.add(roleId);
 
-          const roleIds = member.roles.cache.map(r => r.id);
+          roleStatus.push({
+            role: roleName,
+            status: "assigned"
+          });
 
-          if (dbUser.has_role_vc && !roleIds.includes(ASSIGNABLE_ROLES.vcRole)) {
-            try {
-              await member.roles.add(ASSIGNABLE_ROLES.vcRole);
-              updated = true;
-            } catch (err) {
-              console.error(`Error assigning VC role to ${member.user.tag}:`, err);
-            }
-          }
+          console.log(
+            `${member.user.tag}: Assigned ${roleName} role after opting in.`
+          );
+        } catch (error) {
+          roleStatus.push({
+            role: roleName,
+            status: "assignment_failed"
+          });
 
-          if (dbUser.has_role_image && !roleIds.includes(ASSIGNABLE_ROLES.imgRole)) {
-            try {
-              await member.roles.add(ASSIGNABLE_ROLES.imgRole);
-              updated = true;
-            } catch (err) {
-              console.error(`Error assigning Image role to ${member.user.tag}:`, err);
-            }
-          }
-
-          if (updated) processed.updated += 1;
-          else processed.skipped += 1;
-
-        } catch (err) {
-          if (err.code === 10007) processed.skipped += 1; // Unknown Member
-          else {
-            console.error(`Error fetching member ${dbUser.userId}:`, err);
-            processed.skipped += 1;
-          }
-        } finally {
-          processed.left -= 1;
-          processed.processed += 1;
+          console.error(`Error assigning ${roleName} role:`, error);
         }
-      }));
-
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      }
     }
-  } finally {
-    clearInterval(messageInterval);
 
-    rolloutMsg = await messageHandler({
+    await messageHandler({
       message,
-      command: "rollout",
-      phase: MESSAGE_PHASE.DONE,
-      context: { processed, elapsed: elapsed() },
-      sentMsg: rolloutMsg,
+      command,
+      phase: DONE,
+      sentMsg: statusMsg
+    });
+  } catch (error) {
+    console.error(`Error handling ${command}:`, error);
+
+    await messageHandler({
+      message,
+      command,
+      phase: ERROR,
+      sentMsg: statusMsg,
+      context: { error }
     });
   }
-
-  console.log("Role rollout complete.");
 };
-
-
 
 export const invalidPermissionsHandler = async ({ content, command, userName }) => {
   if (!COMMAND_LIST.includes(command)) return;
