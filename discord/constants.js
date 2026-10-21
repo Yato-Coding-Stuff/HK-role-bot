@@ -1,10 +1,8 @@
+import { skipUser, getRoleEligibility } from './utils.js';
 export const HOME_GUILD_ID = process.env.HOME_GUILD_ID;
-export const BOT_PREFIX = "!";
-export const DYNO_PREFIX = "?";
-export const PREFIXES = [DYNO_PREFIX, BOT_PREFIX];
 export const FETCH_DELAY_MS = 250
 export const IMG_THRESHOLD = 50
-export const VC_THRESHOLD = 25
+export const VC_THRESHOLD = 10
 export const VC_TENURE_MS = 24 * 60 * 60 * 1000; // 1 day
 export const IMG_TENURE_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
 export const COMMAND_LIST = ['warn', "mute", "banf", "ban", "softbanf", "kick", 'seed', 'setcount', 'checkel', 'seeservers', 'leaveservers'];
@@ -22,15 +20,6 @@ export const MESSAGE_PHASE = {
   DONE: "done",
   ERROR: "error"
 };
-
-export const RESPONSE_MESSAGES = {
-  targetuserreset: {
-    start: ({ command, userId }) => `command ${command} issued for ${userId}\n⏳ Resetting perm roles...`,
-    done: ({ userId }) => `✅ Finished resetting perm roles for ${userId}`,
-    error: ({ error }) =>
-      `❌ Failed to reset user roles, This may be because Dyno removed first, but will remove upon unmute\n${error} `
-  },
-}
 
 
 export const COMMAND_MESSAGES = {
@@ -69,36 +58,27 @@ export const COMMAND_MESSAGES = {
     error: ({ error }) => `❌ Failed to opt you back in. Please contact mods for help\n${error}`
   },
 
-  done: ({ userId, count, roleStatus, optedOut }) => {
-    if (optedOut) {
-      return `⚠️ Cannot update the message count for <@${userId}> because they have opted out of tracking.`;
-    }
+  setcount: {
+    start: ({ userId, count }) =>
+      `⏳ Updating message count for <@${userId}> to ${count}...`,
 
-    const formatRoleStatus = ({ role, status, reason }) => {
-      switch (status) {
-        case "already_has_role":
-          return `ℹ️ ${role}: Already has this role.`;
-
-        case "assigned":
-          return reason === "tenure"
-            ? `✅ ${role}: Assigned through tenure.`
-            : `✅ ${role}: Assigned through message count.`;
-
-        case "not_eligible":
-          return `⏳ ${role}: Not yet eligible. Use \`!checkel\` for details.`;
-
-        case "assignment_failed":
-          return `⚠️ ${role}: Eligible, but assignment failed.`;
-
-        default:
-          return `❔ ${role}: Unknown status.`;
+    done: ({ userId, count, optedOut }) => {
+      if (optedOut) {
+        return [
+          `**Message count for <@${userId}>**`,
+          `ℹ️ This user has opted out of message tracking.`,
+          `The message count was not changed.`
+        ].join("\n");
       }
-    };
 
-    return [
-      `✅ Updated message count for <@${userId}> to ${count}.`,
-      ...roleStatus.map(formatRoleStatus)
-    ].join("\n");
+      return [
+        `**Message count updated for <@${userId}>**`,
+        `Message count: ${count}`
+      ].join("\n");
+    },
+
+    error: ({ userId, error }) =>
+      `❌ Failed to update the message count for ${userId ? `<@${userId}>` : "the user"}.\n${error}`
   },
 
 
@@ -134,7 +114,8 @@ export const COMMAND_MESSAGES = {
         hasRole,
         roleName,
         roleKey,
-        threshold
+        threshold,
+        tenureMs
       ) => {
         const adjustedThreshold = threshold * infractionTier;
 
@@ -143,24 +124,34 @@ export const COMMAND_MESSAGES = {
         }
 
         if (eligibleRoles.includes(roleKey)) {
-          return `✅ ${roleName}: requirement met (${messageCount}/${adjustedThreshold} messages).`;
+          const metTenure =
+            infractionTier === 1 &&
+            joinedTimestamp > 0 &&
+            joinedTimestamp <= Date.now() - tenureMs;
+
+          if (metTenure) {
+            return `✅ ${roleName}: tenure requirement met.`;
+          }
+
+          return `✅ ${roleName}: message requirement met (${messageCount}/${adjustedThreshold} messages).`;
         }
 
         return `❌ ${roleName}: ${messageCount}/${adjustedThreshold} messages.`;
       };
-
       const vcLine = describeRoleStatus(
         vcHasRole,
+        "Voice Chat",
         "VC",
-        "VC",
-        VC_THRESHOLD
+        VC_THRESHOLD,
+        VC_TENURE_MS
       );
 
       const imgLine = describeRoleStatus(
         imgHasRole,
         "Image",
         "IMG",
-        IMG_THRESHOLD
+        IMG_THRESHOLD,
+        IMG_TENURE_MS
       );
 
       return [
@@ -168,7 +159,7 @@ export const COMMAND_MESSAGES = {
         `Infraction tier: ${infractionTier}`,
         vcLine,
         imgLine,
-        `-# Message threshold = base threshold × ${infractionTier}`
+        `-# calculated threshold = base threshold × infraction tier (${infractionTier})`
       ].join("\n");
     },
 
@@ -181,7 +172,7 @@ export const COMMAND_MESSAGES = {
     done: ({ elapsed }) => `✅ Pong! \n⏱️ Elapsed: ${elapsed} `
   },
 
-  seeservers: {
+  checkservers: {
     start: () => `⏳ Fetching servers...`,
     done: ({ servers }) =>
       `✅ Bot is in **${servers.length}** server(s):\n${servers.map(s => `• **${s.name}** (\`${s.id}\`) — ${s.memberCount} members`).join('\n')}`,

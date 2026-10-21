@@ -1,22 +1,17 @@
 import {
-  COMMAND_MESSAGES,
   MESSAGE_PHASE,
-  RESPONSE_MESSAGES
+  COMMAND_MESSAGES,
 } from "./constants.js";
 
+
 export const messageHandler = async ({
-  message,
+  interaction,
   command,
   phase = MESSAGE_PHASE.START,
-  context = {},
-  sentMsg,
-  type = "command"
+  context = {}
 }) => {
-  const messageSet =
-    type === "response" ? RESPONSE_MESSAGES : COMMAND_MESSAGES;
-
-  const messages = messageSet[command];
-  if (!messages || !messages[phase]) return sentMsg;
+  const messages = COMMAND_MESSAGES[command];
+  if (!messages || !messages[phase]) return;
 
   const content =
     typeof messages[phase] === "function"
@@ -24,17 +19,15 @@ export const messageHandler = async ({
       : messages[phase];
 
   try {
-    if (!sentMsg) {
-      sentMsg = await message.channel.send(content);
+    if (interaction.deferred || interaction.replied) {
+      await interaction.editReply({ content });
     } else {
-      await sentMsg.edit(content);
+      await interaction.reply({ content });
     }
   } catch (err) {
     console.error(
-      `Error sending/updating ${type} message for ${command} [${phase}]:`,
+      `Error sending/updating command message for ${command} [${phase}]:`,
       err
     );
   }
-
-  return sentMsg;
 };

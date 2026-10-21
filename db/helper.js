@@ -1,7 +1,7 @@
 import { collection } from './mongodb.js';
 
 
-export const updateUserMessageCount = async (userId, userName, joinedTimestamp) => {
+export const updateUserMessageCount = async ({ userId, userName, joinedTimestamp }) => {
   try {
     const updatedUser = await collection.findOneAndUpdate(
       { userId },
@@ -9,7 +9,11 @@ export const updateUserMessageCount = async (userId, userName, joinedTimestamp) 
         {
           $set: {
             messageCount: {
-              $add: [{ $ifNull: ["$messageCount", 0] }, 1]
+              $cond: [
+                { $eq: [{ $ifNull: ["$optedOut", false] }, false] },
+                { $add: [{ $ifNull: ["$messageCount", 0] }, 1] },
+                { $ifNull: ["$messageCount", 0] }
+              ]
             },
             joinedTimestamp: {
               $ifNull: ["$joinedTimestamp", joinedTimestamp]
@@ -29,10 +33,13 @@ export const updateUserMessageCount = async (userId, userName, joinedTimestamp) 
       }
     );
 
-    const user = updatedUser;
-    console.log(`Updated message count for ${userName}`);
+    console.log(
+      updatedUser.optedOut
+        ? `${userName} has opted out. Message count unchanged.`
+        : `Updated message count for ${userName}`
+    );
 
-    return user;
+    return updatedUser;
   } catch (error) {
     console.error("Error updating user message count:", error);
     throw error;
@@ -90,6 +97,7 @@ export const getUserStatus = async (userId) => {
       }
     );
 
+    // If the user doesn't exist, return default values
     return {
       messageCount: user?.messageCount ?? 0,
       joinedTimestamp: user?.joinedTimestamp ?? null,

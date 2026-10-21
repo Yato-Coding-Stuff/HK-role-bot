@@ -1,12 +1,13 @@
 import { Client, GatewayIntentBits } from 'discord.js';
-const { Guilds, GuildMessages, MessageContent, GuildMembers } = GatewayIntentBits;
+const { Guilds, GuildMessages, } = GatewayIntentBits;
 
 
-import { commandHandler } from './commands.js';
-import { syncRestoredRolesHandler } from './handlers.js';
+import { interactionHandler } from './interactions/interactions.js';
+import { syncRestoredRolesHandler, incrementUserCountHandler } from './handlers.js';
 import { HOME_GUILD_ID } from './constants.js';
+import { skipUser } from './utils.js';
 
-const client = new Client({ intents: [Guilds, GuildMessages, MessageContent, GuildMembers] });
+const client = new Client({ intents: [Guilds, GuildMessages,] });
 
 
 client.on('clientReady', () => {
@@ -22,32 +23,38 @@ client.on('guildCreate', async (guild) => {
   }
 });
 
-client.on('guildMemberUpdate', async (oldMember, newMember) => {
-  if (newMember.guild.id !== HOME_GUILD_ID) return;
-  await syncRestoredRolesHandler(oldMember, newMember);
+// client.on('guildMemberUpdate', async (oldMember, newMember) => {
+//   const { guild, roles: newRoles, user } = newMember;
+//   const { id: guildId } = guild || {};
+//   const { roles: oldRoles } = oldMember;
+//   const { id: userId, username: userName } = user || {};
+
+
+//   if (guildId !== HOME_GUILD_ID) return;
+//   await syncRestoredRolesHandler({ oldRoles, newRoles, userId, userName });
+// });
+
+// client.on("messageCreate", async (message) => {
+//   const { author, guild, member } = message;
+//   const { bot: isBot, id: userId, username: userName } = author;
+//   const { joinedTimestamp, roles } = member || {};
+//   const { id: guildId } = guild || {};
+
+
+
+//   if (isBot || !guild) return;
+//   if (guildId !== HOME_GUILD_ID) return;
+//   if (skipUser(member)) return;
+
+//   await incrementUserCountHandler({ userId, userName, joinedTimestamp, roles });
+
+// });
+
+
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  if (interaction.guildId !== HOME_GUILD_ID) return;
+
+  await interactionHandler(interaction);
 });
-
-client.on("messageCreate", async (message) => {
-  if (message.author.bot || !message.guild) return;
-  if (message.guild.id !== HOME_GUILD_ID) return;
-
-  const member = message.member || message.guild.members.cache.get(message.author.id);
-  const content = message.content;
-  const userName = message.author.tag;
-  const args = content.slice(1).trim().split(/\s+/);
-  const command = args.shift().toLowerCase();
-
-
-  await commandHandler({
-    message,
-    member,
-    content,
-    userName,
-    args,
-    command
-  });
-
-});
-
-
 export { client as discordClient };
