@@ -24,10 +24,97 @@ export const MESSAGE_PHASE = {
 
 export const COMMAND_MESSAGES = {
 
+  checkme: {
+    start: () =>
+      "🔍 Checking your role eligibility...",
+
+    done: ({
+      messageCount,
+      joinedTimestamp,
+      infractionTier,
+      optedOut,
+      vcHasRole,
+      imgHasRole
+    }) => {
+      if (optedOut) {
+        return [
+          "**Your Role Eligibility**",
+          "ℹ️ You've opted out of message tracking.",
+          "Role eligibility stats are unavailable while opted out."
+        ].join("\n");
+      }
+
+      const eligibleRoles = getRoleEligibility({
+        messageCount,
+        joinedTimestamp,
+        infractionTier,
+        optedOut
+      });
+
+      const describeRoleStatus = (
+        hasRole,
+        roleName,
+        roleKey,
+        threshold,
+        tenureMs
+      ) => {
+        const adjustedThreshold = threshold * infractionTier;
+
+        if (hasRole) {
+          return `✅ You have the ${roleName} role.`;
+        }
+
+        if (eligibleRoles.includes(roleKey)) {
+          return `⚠️ You're eligible for ${roleName}, but I couldn't assign the role. contact a mod for help.`;
+        }
+
+        if (infractionTier === 1 && joinedTimestamp > 0) {
+          const eligibleAt = joinedTimestamp + tenureMs;
+
+          if (eligibleAt > Date.now()) {
+            return [
+              `⏳ ${roleName}: ${messageCount}/${adjustedThreshold} messages.`,
+              `Automatically eligible at <t:${Math.floor(eligibleAt / 1000)}:F>.`
+            ].join(" ");
+          }
+        }
+
+        return `⏳ ${roleName}: ${messageCount}/${adjustedThreshold} messages.`;
+      };
+
+      const vcLine = describeRoleStatus(
+        vcHasRole,
+        "Voice Chat",
+        "VC",
+        VC_THRESHOLD,
+        VC_TENURE_MS
+      );
+
+      const imgLine = describeRoleStatus(
+        imgHasRole,
+        "Image",
+        "IMG",
+        IMG_THRESHOLD,
+        IMG_TENURE_MS
+      );
+
+      return [
+        "**Your Role Eligibility**",
+        `Infraction tier: ${infractionTier}`,
+        vcLine,
+        imgLine,
+        `-# Message thresholds scale with your infraction tier (${infractionTier}×).`
+      ].join("\n");
+    },
+
+    error: ({ error }) =>
+      `❌ Failed to check your role eligibility.\n${error}`
+  },
+
   optout: {
     start: () => "⏳ Opting you out of message tracking...",
     done: () =>
-      "✅ You've opted out of message tracking. Your VC and Image roles are removed, and your message count will no longer be tracked. You can opt back in with `!optin`.",
+      "✅ You've opted out of message tracking. Your VC and Image roles are removed, and your message count will no longer be tracked. You can opt back in with `/optin`.",
     error: ({ error }) =>
       `❌ Failed to opt you out. Please contact mods for help\n${error}`
   },
@@ -134,6 +221,19 @@ export const COMMAND_MESSAGES = {
           }
 
           return `✅ ${roleName}: message requirement met (${messageCount}/${adjustedThreshold} messages).`;
+        }
+
+        if (
+          infractionTier === 1 &&
+          joinedTimestamp > 0
+        ) {
+          const eligibleAt = joinedTimestamp + tenureMs;
+
+          if (eligibleAt > Date.now()) {
+            const discordTimestamp = `<t:${Math.floor(eligibleAt / 1000)}:F>`;
+
+            return `${roleName}: ${messageCount}/${adjustedThreshold} messages, eligible automatically at ${discordTimestamp}.`;
+          }
         }
 
         return `❌ ${roleName}: ${messageCount}/${adjustedThreshold} messages.`;

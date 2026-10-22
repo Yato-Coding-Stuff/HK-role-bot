@@ -1,9 +1,10 @@
-import { skipUser as hasStaffPermission, getRoleEligibility } from '../utils.js';
+import 'dotenv/config';
+import { skipUser as hasStaffPermission, getRoleEligibility, updateOptOutStatus } from '../utils.js';
 import { messageHandler } from '../message.js';
 import { ASSIGNABLE_ROLES, MESSAGE_PHASE } from '../constants.js';
 import { getUserStatus, setUserMessageCount } from '../../db/helper.js';
 
-//staff commands
+// staff commands
 
 export const setcountHandler = async (interaction) => {
   const { START, DONE, ERROR } = MESSAGE_PHASE;
@@ -91,8 +92,6 @@ export const setcountHandler = async (interaction) => {
 };
 
 export const checkelHandler = async (interaction) => {
-
-
   const { START, DONE, ERROR } = MESSAGE_PHASE;
   const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
   const { member } = interaction;
@@ -100,24 +99,20 @@ export const checkelHandler = async (interaction) => {
   if (!hasStaffPermission(member)) return;
 
   const user = interaction.options.getUser("user");
-  const targetMember = await interaction.guild.members.fetch(
-    interaction.options.getUser("user").id
-  )
-  const userId = user.id
-  const vcHasRole = targetMember.roles.cache.has(VC_ROLE);
-  const imgHasRole = targetMember.roles.cache.has(IMG_ROLE);
-
-  let checkMessage;
+  const userId = user.id;
 
   try {
-    checkMessage = await messageHandler({
+    await messageHandler({
       interaction,
       command: "checkel",
       phase: START,
-      context: { userId },
-      sentMsg: checkMessage
+      context: { userId }
     });
 
+    const targetMember = await interaction.guild.members.fetch(userId);
+
+    const vcHasRole = targetMember.roles.cache.has(VC_ROLE);
+    const imgHasRole = targetMember.roles.cache.has(IMG_ROLE);
 
     const {
       messageCount,
@@ -126,30 +121,31 @@ export const checkelHandler = async (interaction) => {
       optedOut
     } = await getUserStatus(userId);
 
-    checkMessage = await messageHandler({
+    const effectiveJoinedTimestamp =
+      joinedTimestamp ?? targetMember.joinedTimestamp;
+
+    await messageHandler({
       interaction,
       command: "checkel",
       phase: DONE,
       context: {
         userId,
         messageCount,
-        joinedTimestamp: joinedTimestamp ?? member.joinedTimestamp,
+        joinedTimestamp: effectiveJoinedTimestamp,
         infractionTier,
         optedOut,
         vcHasRole,
         imgHasRole
-      },
-      sentMsg: checkMessage
+      }
     });
   } catch (error) {
     console.error("Error checking user eligibility:", error);
 
-    checkMessage = await messageHandler({
+    await messageHandler({
       interaction,
       command: "checkel",
       phase: ERROR,
-      context: { error },
-      sentMsg: checkMessage
+      context: { error: error.message }
     });
   }
 };
@@ -216,232 +212,208 @@ export const checkserversHandler = async (interaction) => {
 };
 
 
-// export const leaveServersHandler = async ({ message }) => {
-//   const { START, DONE, ERROR } = MESSAGE_PHASE;
-//   let statusMsg;
+export const leaveserversHandler = async (interaction) => {
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
 
-//   try {
-//     statusMsg = await messageHandler({
-//       message,
-//       command: "leaveservers",
-//       phase: START,
-//       sentMsg: statusMsg
-//     });
+  try {
+    await messageHandler({
+      interaction,
+      command: "leaveservers",
+      phase: START
+    });
 
-//     const guildsToLeave = client.guilds.cache.filter(guild => guild.id !== HOME_GUILD_ID && guild.id !== process.env.HOME_TEST_GUILD_ID);
-//     const left = [];
-//     const failed = [];
+    const guildsToLeave = client.guilds.cache.filter(
+      guild =>
+        guild.id !== HOME_GUILD_ID &&
+        guild.id !== process.env.HOME_TEST_GUILD_ID
+    );
 
-//     await Promise.all(guildsToLeave.map(async (guild) => {
-//       try {
-//         await guild.leave();
-//         left.push(guild.name);
-//         console.log(`Left guild: ${guild.name} (${guild.id})`);
-//       } catch (e) {
-//         failed.push(guild.name);
-//         console.error(`Failed to leave guild ${guild.name} (${guild.id}):`, e);
-//       }
-//     }));
+    const left = [];
+    const failed = [];
 
-//     statusMsg = await messageHandler({
-//       message,
-//       command: "leaveservers",
-//       phase: DONE,
-//       context: { left, failed },
-//       sentMsg: statusMsg
-//     });
-//   } catch (e) {
-//     console.error("Error leaving servers:", e);
-//     statusMsg = await messageHandler({
-//       message,
-//       command: "leaveservers",
-//       phase: ERROR,
-//       context: { error: e },
-//       sentMsg: statusMsg
-//     });
-//   }
-// };
+    await Promise.all(
+      guildsToLeave.map(async (guild) => {
+        try {
+          await guild.leave();
+          left.push(guild.name);
+          console.log(`Left guild: ${guild.name} (${guild.id})`);
+        } catch (error) {
+          failed.push(guild.name);
+          console.error(
+            `Failed to leave guild ${guild.name} (${guild.id}):`,
+            error
+          );
+        }
+      })
+    );
+
+    await messageHandler({
+      interaction,
+      command: "leaveservers",
+      phase: DONE,
+      context: { left, failed }
+    });
+  } catch (error) {
+    console.error("Error leaving servers:", error);
+
+    await messageHandler({
+      interaction,
+      command: "leaveservers",
+      phase: ERROR,
+      context: { error: error.message }
+    });
+  }
+};
 
 
-// export const targetUserResetHandler = async ({ message, command, user }) => {
-//   const { VC_ROLE, IMG_ROLE, MUTED_ROLE } = ASSIGNABLE_ROLES;
-//   const { START, DONE, ERROR } = MESSAGE_PHASE;
+// all commands
 
-//   let targetUserMsg;
+export const checkmeHandler = async (interaction) => {
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
+  const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
 
-//   const userId = await resolveUserId({ user, guild: message.guild });
+  const userId = interaction.user.id;
 
-//   if (!userId) {
-//     await message.channel.send(`❌ Could not resolve user \`${user}\` — try using their ID instead.`);
-//     return;
-//   }
+  try {
+    await messageHandler({
+      interaction,
+      command: "checkme",
+      phase: START,
+      context: { userId },
+      ephemeral: true
+    });
 
-//   targetUserMsg = await messageHandler({
-//     message,
-//     response: "targetuserreset",
-//     phase: START,
-//     context: { command, userId },
-//     sentMsg: targetUserMsg
-//   });
+    const member = await interaction.guild.members.fetch(userId);
 
-//   if (command !== "banf" || command === "kick") {
-//     try {
-//       await targetUserReset(userId, message.createdTimestamp);
-//       // this might ALSO fail because dyno might remove the roles on mute before our bot can get to it
-//       // so we can just try to remove the roles and if not it will reset them on message increment anyway
-//       const member = await message.guild.members.fetch(userId);
-//       if (member) {
-//         await member.roles.remove([VC_ROLE, IMG_ROLE]);
-//         // for whatever reason dyno sometimes doesnt add the muted role on mute, so we'll just add it ourselves
-//         await member.roles.add(MUTED_ROLE);
-//         console.log(`Removed assignable roles from user ${userId}`);
+    const vcHasRole = member.roles.cache.has(VC_ROLE);
+    const imgHasRole = member.roles.cache.has(IMG_ROLE);
 
-//       }
+    const {
+      messageCount,
+      joinedTimestamp,
+      infractionTier,
+      optedOut
+    } = await getUserStatus(userId);
 
-//       targetUserMsg = await messageHandler({
-//         message,
-//         response: "targetuserreset",
-//         phase: DONE,
-//         context: { userId },
-//         sentMsg: targetUserMsg
-//       });
+    const effectiveJoinedTimestamp =
+      joinedTimestamp ?? member.joinedTimestamp;
 
-//     } catch (err) {
-//       console.error("Error resetting target user roles:", err);
-//       targetUserMsg = await messageHandler({
-//         message,
-//         response: "targetuserreset",
-//         phase: ERROR,
-//         context: { error: err },
-//         sentMsg: targetUserMsg
-//       });
-//     }
-//   }
+    const eligibleRoles = getRoleEligibility({
+      messageCount,
+      joinedTimestamp: effectiveJoinedTimestamp,
+      infractionTier,
+      optedOut
+    });
 
-//   if (command === "banf" || command === "kick") {
-//     try {
-//       await targetUserReset(userId, message.createdTimestamp);
-//       console.log(`Removed assignable roles from user ${userId}`);
-//       targetUserMsg = await messageHandler({
-//         message,
-//         response: "targetuserreset",
-//         phase: DONE,
-//         context: { userId },
-//         sentMsg: targetUserMsg
-//       });
+    const roleMap = {
+      VC: VC_ROLE,
+      IMG: IMG_ROLE
+    };
 
-//     } catch (err) {
-//       console.error("Error resetting target user roles:", err);
-//       targetUserMsg = await messageHandler({
-//         message,
-//         response: "targetuserreset",
-//         phase: ERROR,
-//         context: { error: err },
-//         sentMsg: targetUserMsg
-//       });
-//     }
-//   }
+    for (const [roleName, roleId] of Object.entries(roleMap)) {
+      if (!eligibleRoles.includes(roleName)) continue;
+      if (member.roles.cache.has(roleId)) continue;
 
-// };
+      try {
+        await member.roles.add(roleId);
 
-// export const optOutHandler = async ({ message, optedOut = true }) => {
-//   const { START, DONE, ERROR } = MESSAGE_PHASE;
-//   const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
+        console.log(
+          `${member.user.tag}: Assigned ${roleName} role through checkme.`
+        );
+      } catch (error) {
+        console.error(
+          `Error assigning ${roleName} role through checkme:`,
+          error
+        );
+      }
+    }
 
-//   let statusMsg;
-//   const command = optedOut ? "optout" : "optin";
+    await messageHandler({
+      interaction,
+      command: "checkme",
+      phase: DONE,
+      context: {
+        userId,
+        messageCount,
+        joinedTimestamp: effectiveJoinedTimestamp,
+        infractionTier,
+        optedOut,
+        vcHasRole,
+        imgHasRole
+      }
+    });
+  } catch (error) {
+    console.error("Error checking own eligibility:", error);
 
-//   try {
-//     statusMsg = await messageHandler({
-//       message,
-//       command,
-//       phase: START,
-//       sentMsg: statusMsg
-//     });
+    await messageHandler({
+      interaction,
+      command: "checkme",
+      phase: ERROR,
+      context: {
+        error: error.message
+      }
+    });
+  }
+};
 
-//     const member = await message.guild.members.fetch(message.author.id);
+export const optoutHandler = async (interaction) => {
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
 
-//     // Save the user's opt-out preference.
-//     await setUserOptOutStatus(message.author.id, optedOut);
+  try {
+    await messageHandler({
+      interaction,
+      command: "optout",
+      phase: START,
+      ephemeral: true
+    });
 
-//     const roleMap = {
-//       VC: VC_ROLE,
-//       IMG: IMG_ROLE
-//     };
+    await updateOptOutStatus(interaction, true);
 
-//     if (optedOut) {
-//       // Remove both roles when opting out.
-//       for (const [roleName, roleId] of Object.entries(roleMap)) {
-//         if (!member.roles.cache.has(roleId)) continue;
+    await messageHandler({
+      interaction,
+      command: "optout",
+      phase: DONE
+    });
+  } catch (error) {
+    console.error("Error handling optout:", error);
 
-//         await member.roles.remove(roleId);
-//         console.log(`${member.user.tag}: Removed ${roleName} role after opting out.`);
-//       }
-//     } else {
-//       // Retrieve existing progress without resetting it.
-//       const {
-//         messageCount,
-//         joinedTimestamp,
-//         infractionTier,
-//         optedOut
-//       } = await getUserStatus(message.author.id);
+    await messageHandler({
+      interaction,
+      command: "optout",
+      phase: ERROR,
+      context: { error: error.message }
+    });
+  }
+};
 
-//       const eligibleRoles = getRoleEligibility({
-//         messageCount,
-//         joinedTimestamp: joinedTimestamp ?? member.joinedTimestamp,
-//         infractionTier,
-//         optedOut
-//       });
 
-//       // Assign roles the user currently qualifies for.
-//       for (const [roleName, roleId] of Object.entries(roleMap)) {
-//         const isEligible = eligibleRoles.includes(roleName);
 
-//         if (!isEligible) {
-//           roleStatus.push({
-//             role: roleName,
-//             status: "not_eligible"
-//           });
-//           continue;
-//         }
+export const optinHandler = async (interaction) => {
+  const { START, DONE, ERROR } = MESSAGE_PHASE;
 
-//         try {
-//           await member.roles.add(roleId);
+  try {
+    await messageHandler({
+      interaction,
+      command: "optin",
+      phase: START,
+      ephemeral: true
+    });
 
-//           roleStatus.push({
-//             role: roleName,
-//             status: "assigned"
-//           });
+    await updateOptOutStatus(interaction, false);
 
-//           console.log(
-//             `${member.user.tag}: Assigned ${roleName} role after opting in.`
-//           );
-//         } catch (error) {
-//           roleStatus.push({
-//             role: roleName,
-//             status: "assignment_failed"
-//           });
+    await messageHandler({
+      interaction,
+      command: "optin",
+      phase: DONE
+    });
+  } catch (error) {
+    console.error("Error handling optin:", error);
 
-//           console.error(`Error assigning ${roleName} role:`, error);
-//         }
-//       }
-//     }
-
-//     await messageHandler({
-//       message,
-//       command,
-//       phase: DONE,
-//       sentMsg: statusMsg
-//     });
-//   } catch (error) {
-//     console.error(`Error handling ${command}:`, error);
-
-//     await messageHandler({
-//       message,
-//       command,
-//       phase: ERROR,
-//       sentMsg: statusMsg,
-//       context: { error }
-//     });
-//   }
-// };
+    await messageHandler({
+      interaction,
+      command: "optin",
+      phase: ERROR,
+      context: { error: error.message }
+    });
+  }
+};

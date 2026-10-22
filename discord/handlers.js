@@ -1,13 +1,18 @@
-import { discordClient as client } from './discord.js';
-import { skipUser, getRoleEligibility } from './utils.js';
-import { updateUserMessageCount, targetUserReset, setUserMessageCount, getUserStatus } from '../db/helper.js';
-import { ASSIGNABLE_ROLES, MESSAGE_PHASE, COMMAND_LIST, HOME_GUILD_ID } from './constants.js';
-import { messageHandler } from './message.js';
+
+import { getRoleEligibility } from './utils.js';
+import { updateUserMessageCount, getUserStatus } from '../db/helper.js';
+import { ASSIGNABLE_ROLES, } from './constants.js';
 
 
 
 
-export const incrementUserCountHandler = async ({ userId, userName, joinedTimestamp, roles }) => {
+
+export const incrementUserCountHandler = async ({
+  userId,
+  userName,
+  joinedTimestamp,
+  roles
+}) => {
   const { VC_ROLE, IMG_ROLE } = ASSIGNABLE_ROLES;
 
   try {
@@ -24,9 +29,12 @@ export const incrementUserCountHandler = async ({ userId, userName, joinedTimest
 
     if (optedOut) return;
 
+    const effectiveJoinedTimestamp =
+      savedJoinedTimestamp ?? joinedTimestamp;
+
     const eligibleRoles = getRoleEligibility({
       messageCount,
-      joinedTimestamp: savedJoinedTimestamp,
+      joinedTimestamp: effectiveJoinedTimestamp,
       infractionTier,
       optedOut
     });
@@ -38,25 +46,24 @@ export const incrementUserCountHandler = async ({ userId, userName, joinedTimest
 
     for (const [roleName, roleId] of Object.entries(roleMap)) {
       const isEligible = eligibleRoles.includes(roleName);
-      const hasRole = member.roles.cache.has(roleId);
+      const hasRole = roles.cache.has(roleId);
 
       if (isEligible && !hasRole) {
         try {
-          await member.roles.add(roleId);
-          console.log(`${tag} assigned ${roleName} role.`);
+          await roles.add(roleId);
+          console.log(`${userName} assigned ${roleName} role.`);
         } catch (error) {
           console.error(`Error assigning ${roleName} role:`, error);
         }
       } else if (!isEligible && hasRole) {
         try {
-          await member.roles.remove(roleId);
-          console.log(`${tag} removed ineligible ${roleName} role.`);
+          await roles.remove(roleId);
+          console.log(`${userName} removed ineligible ${roleName} role.`);
         } catch (error) {
           console.error(`Error removing ${roleName} role:`, error);
         }
       }
     }
-
   } catch (error) {
     console.error("Error updating message count on messageCreate:", error);
   }

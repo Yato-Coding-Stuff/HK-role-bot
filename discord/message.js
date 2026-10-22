@@ -3,12 +3,15 @@ import {
   COMMAND_MESSAGES,
 } from "./constants.js";
 
+import { MessageFlags } from "discord.js";
+
 
 export const messageHandler = async ({
   interaction,
   command,
   phase = MESSAGE_PHASE.START,
-  context = {}
+  context = {},
+  ephemeral = false
 }) => {
   const messages = COMMAND_MESSAGES[command];
   if (!messages || !messages[phase]) return;
@@ -22,7 +25,10 @@ export const messageHandler = async ({
     if (interaction.deferred || interaction.replied) {
       await interaction.editReply({ content });
     } else {
-      await interaction.reply({ content });
+      await interaction.reply({
+        content,
+        flags: ephemeral ? MessageFlags.Ephemeral : undefined
+      });
     }
   } catch (err) {
     console.error(

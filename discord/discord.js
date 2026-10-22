@@ -23,32 +23,32 @@ client.on('guildCreate', async (guild) => {
   }
 });
 
-// client.on('guildMemberUpdate', async (oldMember, newMember) => {
-//   const { guild, roles: newRoles, user } = newMember;
-//   const { id: guildId } = guild || {};
-//   const { roles: oldRoles } = oldMember;
-//   const { id: userId, username: userName } = user || {};
+client.on('guildMemberUpdate', async (oldMember, newMember) => {
+  const { guild, roles: newRoles, user } = newMember;
+  const { id: guildId } = guild || {};
+  const { roles: oldRoles } = oldMember;
+  const { id: userId, username: userName } = user || {};
 
 
-//   if (guildId !== HOME_GUILD_ID) return;
-//   await syncRestoredRolesHandler({ oldRoles, newRoles, userId, userName });
-// });
+  if (guildId !== HOME_GUILD_ID) return;
+  await syncRestoredRolesHandler({ oldRoles, newRoles, userId, userName });
+});
 
-// client.on("messageCreate", async (message) => {
-//   const { author, guild, member } = message;
-//   const { bot: isBot, id: userId, username: userName } = author;
-//   const { joinedTimestamp, roles } = member || {};
-//   const { id: guildId } = guild || {};
+client.on("messageCreate", async (message) => {
+  const { author, guild, member } = message;
+  const { bot: isBot, id: userId, username: userName } = author;
+  const { joinedTimestamp, roles } = member || {};
+  const { id: guildId } = guild || {};
 
 
 
-//   if (isBot || !guild) return;
-//   if (guildId !== HOME_GUILD_ID) return;
-//   if (skipUser(member)) return;
+  if (isBot || !guild) return;
+  if (guildId !== HOME_GUILD_ID) return;
+  if (skipUser(member)) return;
 
-//   await incrementUserCountHandler({ userId, userName, joinedTimestamp, roles });
+  await incrementUserCountHandler({ userId, userName, joinedTimestamp, roles });
 
-// });
+});
 
 
 client.on("interactionCreate", async (interaction) => {

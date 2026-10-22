@@ -12,32 +12,26 @@ export const interactionHandler = async (interaction) => {
       console.warn(`No handler found for /${interactionName} command.`);
       return;
     }
-
     await handler(interaction);
-
 
 
   } catch (error) {
     console.error("Error in interaction command handler:", error);
-    // } finally {
-    //   await incrementUserCountHandler(message);
-    //   // increment user count
-    // }
-
   }
 }
+
 
 
 
 export const interactions = [
   new SlashCommandBuilder()
     .setName('ping')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
     .setDescription('Check bot responsiveness'),
 
   new SlashCommandBuilder()
     .setName('checkel')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
     .setDescription('Check a user\'s role eligibility')
     .addUserOption(option =>
       option
@@ -45,9 +39,10 @@ export const interactions = [
         .setDescription('The user to check')
         .setRequired(true)
     ),
+
   new SlashCommandBuilder()
     .setName('setcount')
-    .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
     .setDescription('Set a user\'s message count')
     .addUserOption(option =>
       option
@@ -60,4 +55,24 @@ export const interactions = [
         .setDescription('The message count to set')
         .setRequired(true)
     ),
+
+  new SlashCommandBuilder()
+    .setName('checkservers')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .setDescription('Check servers the bot is in'),
+
+  new SlashCommandBuilder()
+    .setName('leaveservers')
+    .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+    .setDescription('Leave servers the bot is in, minus test and HK server'),
+
+  new SlashCommandBuilder()
+    .setName('checkme')
+    .setDescription('Check your own role eligibility'),
+  new SlashCommandBuilder()
+    .setName('optout')
+    .setDescription('Opt out of role eligibility'),
+  new SlashCommandBuilder()
+    .setName('optin')
+    .setDescription('Opt in to role eligibility')
 ]
